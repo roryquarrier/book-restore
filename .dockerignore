@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.astro
+*.log
+worker/worker.log
+worker/__pycache__
+.env
+.env.local

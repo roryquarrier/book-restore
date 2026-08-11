@@ -24,7 +24,9 @@ function safeName(name: string): string {
 
 export const POST: APIRoute = async ({ locals, request }) => {
   const userId = locals.userId;
+  console.log('[api/upload] userId from locals:', userId);
   if (!userId) {
+    console.log('[api/upload] REJECTED 401 — no userId in locals');
     return json({ error: 'You are not signed in. Sign in again, then retry the deposit.' }, 401);
   }
 

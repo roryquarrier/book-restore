@@ -53,6 +53,17 @@ export const GET: APIRoute = async ({ params, locals, request, redirect }) => {
     return json({ error: 'That restoration is not finished yet — there is nothing to collect.', status: job.status }, 409);
   }
 
+  // Enforce the 7-day retention window. After expiry, the book is cleared
+  // and the download link is refused even if the storage object lingers.
+  // Fail closed: if expires_at is missing or unparseable, refuse the download.
+  if (!job.expires_at) {
+    return json({ error: 'This restoration has no retention record and cannot be collected.' }, 410);
+  }
+  const expiry = new Date(job.expires_at);
+  if (isNaN(expiry.getTime()) || expiry.getTime() < Date.now()) {
+    return json({ error: 'The retention window for this restoration has closed. Re-deposit the book to restore it again.' }, 410);
+  }
+
   const path = job.output_storage_path ?? job.storage_path;
   if (!path) {
     return json({ error: 'No finished file is filed against that record.' }, 404);

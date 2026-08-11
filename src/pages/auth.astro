@@ -6,7 +6,14 @@ export const prerender = false;
 
 const requested = Astro.url.searchParams.get('mode');
 const isSignUp = requested === 'signup';
-const next = Astro.url.searchParams.get('next') ?? '/dashboard';
+// Only allow same-origin relative paths for the post-auth redirect.
+// Strict allowlist: must start with /, contain only path-safe chars,
+// and not start with // (protocol-relative) or /\ (backslash).
+const rawNext = Astro.url.searchParams.get('next') ?? '/dashboard';
+const SAFE_PATH = /^\/[a-zA-Z0-9/_\-?=&%.]*$/;
+const next = SAFE_PATH.test(rawNext) && !rawNext.startsWith('//') && !rawNext.startsWith('/\\')
+  ? rawNext
+  : '/dashboard';
 ---
 
 <Base title="Sign In — Book Bash">
@@ -143,9 +150,57 @@ const next = Astro.url.searchParams.get('next') ?? '/dashboard';
   }
   .auth-terms dt {
     font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--tv-fg-muted); white-space: nowrap;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    flex-shrink: 0;
   }
   .auth-terms dd { font-size: 0.95rem; text-align: right; }
+
+  /* Mobile: stack the terms vertically so values don't get cut off */
+  @media (max-width: 699px) {
+    .auth-terms > div {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: calc(var(--tv-space-unit) * 1);
+    }
+    .auth-terms dt {
+      font-size: 0.62rem;
+    }
+    .auth-terms dd {
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .auth-main {
+      padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 3)
+               calc(var(--tv-space-unit) * 8);
+      gap: calc(var(--tv-space-unit) * 6);
+    }
+    .auth-nav {
+      padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 3);
+    }
+    .auth-card {
+      padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 3);
+    }
+    /* Force Clerk elements to fit mobile width — Clerk defaults to 450px fixed */
+    .cl-rootBox,
+    .cl-cardBox,
+    .cl-card,
+    .cl-formFieldInput,
+    .cl-formButtonPrimary,
+    .cl-socialButtonsBlockButton,
+    .cl-alternativeMethodsBlockButton {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .auth-clerk-wrap {
+      padding: 0 !important;
+      width: 100% !important;
+    }
+    /* Prevent any horizontal overflow from Clerk */
+    .auth-card {
+      overflow-x: hidden;
+    }
+  }
 
   .auth-card {
     background: var(--tv-surface);

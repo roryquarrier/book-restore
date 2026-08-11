@@ -1,0 +1,31 @@
+# ── Build stage: compile Astro app ─────────────────────────────────
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+# Copy package files and install deps
+COPY package.json package-lock.json ./
+RUN npm install
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# ── Runtime stage: serve the built app ─────────────────────────────
+FROM node:22-slim AS runtime
+
+WORKDIR /app
+
+# Copy the standalone server output + static assets
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# Astro standalone server listens on PORT env var
+ENV HOST=0.0.0.0
+ENV PORT=4321
+ENV NODE_ENV=production
+
+EXPOSE 4321
+
+CMD ["node", "dist/server/entry.mjs"]

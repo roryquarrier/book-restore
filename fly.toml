@@ -1,0 +1,27 @@
+# Fly.io config for the Book Bash worker
+# This is a background queue worker — no public HTTP service needed.
+
+app = "book-bash-worker"
+primary_region = "sin"  # Singapore — closest to Vietnam/Asia teachers
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  RESTORE_PROVIDER = "openai"
+  RESTORE_QUALITY = "medium"
+  JOBS_ROOT = "/tmp/book-bash-jobs"
+
+# Worker VM — needs enough RAM for PDF + image processing
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Worker must stay alive — restore jobs take 5-20 minutes.
+# auto_stop_machines kills the worker mid-job, corrupting restores.
+[http_service]
+  internal_port = 8080
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1

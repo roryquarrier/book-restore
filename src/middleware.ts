@@ -17,6 +17,8 @@ export const onRequest = clerkMiddleware(async (auth, context, next) => {
   const userId = authObject.userId;
   const email = authObject.sessionClaims?.email as string | undefined;
 
+  console.log('[middleware]', context.url.pathname, '| userId:', userId, '| status:', (authObject as any).status);
+
   let profile: Profile | null = null;
 
   if (userId) {
@@ -30,6 +32,7 @@ export const onRequest = clerkMiddleware(async (auth, context, next) => {
   const { url } = context;
 
   if (!userId && matches(url.pathname, PROTECTED_ROUTES)) {
+    // Only allow relative paths to prevent open redirect
     const target = url.pathname + url.search;
     return context.redirect('/auth?next=' + encodeURIComponent(target));
   }

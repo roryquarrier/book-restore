@@ -160,10 +160,17 @@ export const POST: APIRoute = async ({ request }) => {
   // Sessions created before this metadata existed still get a stable key.
   const idempotencyKey = metadata.idempotency_key || `session:${session.id}`;
 
-  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    console.error('[stripe-webhook] SUPABASE_SERVICE_ROLE_KEY is not set');
+  // Vite's import.meta.env doesn't see Fly.io runtime secrets, so fall back to
+  // process.env (where Fly.io injects them). Same pattern as lib/stripe.ts.
+  const nodeEnv =
+    (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  const readEnv = (name: string): string | undefined =>
+    (import.meta.env as Record<string, string | undefined>)[name] || nodeEnv[name];
+
+  const supabaseUrl = readEnv('PUBLIC_SUPABASE_URL');
+  const serviceRoleKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('[stripe-webhook] PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set');
     return text('supabase not configured', 500);
   }
 

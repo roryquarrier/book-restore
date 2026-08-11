@@ -1,0 +1,30 @@
+# Fly.io config for the Book Bash web frontend (Astro Node server)
+app = "book-bash-web"
+primary_region = "sin"  # Singapore — closest to Asia teachers
+
+[build]
+  dockerfile = "Dockerfile.web"
+
+[env]
+  NODE_ENV = "production"
+
+# Web server — needs to receive HTTP traffic
+[http_service]
+  internal_port = 4321
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1  # keep at least 1 alive for fast response
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/"
+
+# VM sizing
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

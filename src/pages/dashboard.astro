@@ -162,7 +162,7 @@ const canceled = Astro.url.searchParams.get('canceled') === '1';
         <p class="dash-section-label">Terms of Acquisition · Credits</p>
         <h2 id="buy-heading">Buy credits</h2>
         <p class="buy-lede">
-          Three credits restore one page. Credits never expire, and they are spent only when a
+          One credit restores one page. Credits never expire, and they are spent only when a
           restoration completes — a failed job returns them to your balance. Payment is handled
           by Stripe; no card details reach this archive.
         </p>
@@ -368,7 +368,7 @@ const canceled = Astro.url.searchParams.get('canceled') === '1';
       const pendingEl = document.querySelector('[data-field="pending"]');
       if (pendingEl) pendingEl.textContent = String(data.pending);
       const affordable = document.querySelector('[data-field="pages-affordable"]');
-      if (affordable) affordable.textContent = String(Math.floor(data.credits / 3));
+      if (affordable) affordable.textContent = String(data.credits);
 
       const rows = new Map(
         [...table.querySelectorAll('[data-job-row]')].map((row) => [row.dataset.jobId, row])
@@ -561,7 +561,7 @@ const canceled = Astro.url.searchParams.get('canceled') === '1';
       const pendingEl = document.querySelector('[data-field="pending"]');
       if (pendingEl) pendingEl.textContent = String(data.pending);
       const affordable = document.querySelector('[data-field="pages-affordable"]');
-      if (affordable) affordable.textContent = String(Math.floor(data.credits / 3));
+      if (affordable) affordable.textContent = String(data.credits);
     };
 
     const watch = async () => {
