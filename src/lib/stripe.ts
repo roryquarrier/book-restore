@@ -43,7 +43,7 @@ export interface CreditPack {
 
 /**
  * Three tiers of acquisition. Price per credit falls as the tier rises;
- * at 3 credits per page, `credits / 3` is the page allowance shown on the card.
+ * at 1 credit per page, the credit count is the page allowance shown on the card.
  */
 export const CREDIT_PACKS: Record<PackId, CreditPack> = {
   small: {

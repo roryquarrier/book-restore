@@ -70,6 +70,6 @@ book-bash/
 
 ## Credit System
 - 10 free credits on signup
-- 3 credits per page restored
+- 1 credit per page restored
 - $5 = 50 credits · $10 = 120 credits · $20 = 260 credits
 - Hold → commit on success → refund on failure

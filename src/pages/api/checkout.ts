@@ -71,7 +71,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
               unit_amount: chosen.priceCents,
               product_data: {
                 name: 'Book Bash — ' + chosen.credits + ' restoration credits',
-                description: chosen.label + ' · ' + formatPrice(chosen.priceCents) + ' for ' + chosen.credits + ' credits (about ' + Math.floor(chosen.credits / 3) + ' pages at 3 credits per page).',
+                description: chosen.label + ' · ' + formatPrice(chosen.priceCents) + ' for ' + chosen.credits + ' credits (about ' + chosen.credits + ' pages at 1 credit per page).',
               },
             },
           },

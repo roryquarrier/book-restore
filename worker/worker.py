@@ -13,7 +13,7 @@ Job lifecycle driven by this worker:
               --success-->  commit_credits()  ->  complete
               --failure-->  refund_credits()  ->  refunded  (+ error_message)
 
-Credits: 3 per page, held up-front, committed on success, refunded on failure.
+Credits: 1 per page, held up-front, committed on success, refunded on failure.
 Hard cap: 80 pages per book.
 
 Safety:
@@ -53,7 +53,7 @@ JOBS_ROOT = Path("/tmp/book-bash-jobs")
 LOG_FILE = WORKER_DIR / "worker.log"
 
 BUCKET = "book-bash"
-CREDITS_PER_PAGE = 3
+CREDITS_PER_PAGE = 1
 MAX_PAGES = 80
 
 POLL_INTERVAL = 5           # seconds between queue polls

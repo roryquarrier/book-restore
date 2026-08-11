@@ -1,7 +1,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 const MAX_BYTES = 50 * 1024 * 1024;
-const CREDITS_PER_PAGE = 3;
+const CREDITS_PER_PAGE = 1;
 
 interface Props {
   userId: string;

@@ -81,7 +81,7 @@ const packs = PACK_IDS.map((id, i) => {
     numeral: NUMERALS[i] ?? String(i + 1),
     price: formatPrice(pack.priceCents),
     rate: perCredit(pack),
-    pages: Math.floor(pack.credits / 3),
+    pages: pack.credits,
     saving: saved > 0.01 ? `${Math.round(saved * 100)}% better rate` : null,
   };
 });
@@ -145,11 +145,11 @@ const canceled = Astro.url.searchParams.get('canceled') === '1';
           </div>
           <div>
             <dt>Rate</dt>
-            <dd>3 credits · 1 page</dd>
+            <dd>1 credit · 1 page</dd>
           </div>
           <div>
             <dt>Pages you can restore</dt>
-            <dd data-field="pages-affordable">{Math.floor(credits / 3)}</dd>
+            <dd data-field="pages-affordable">{credits}</dd>
           </div>
         </dl>
         <div class="dash-actions">
