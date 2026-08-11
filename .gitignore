@@ -1,0 +1,21 @@
+# build output
+dist/
+
+# dependencies
+node_modules/
+
+# env
+.env
+.env.local
+.env.production
+
+# misc
+.DS_Store
+*.log
+
+# supabase
+supabase/.branches
+supabase/.temp
+
+# astro
+.astro/

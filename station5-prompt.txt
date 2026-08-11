@@ -1,0 +1,51 @@
+You are building Station 5 (Dashboard Enhancement + Job Status) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/
+STACK: Astro 7 + React 19 + Tailwind 4 + Supabase SSR (@astrojs/node adapter)
+
+The project already has (from Stations 1-3):
+- Landing page (/) with v2 Archival Museum design — DO NOT MODIFY
+- Auth pages (/auth) — DO NOT MODIFY
+- Dashboard (/dashboard) showing credits, job history table, upload link
+- Upload page (/upload) with drag-drop PDF upload
+- Job detail page (/jobs/[id]) showing status
+- Middleware protecting /dashboard, /upload, /jobs/*
+- DB: profiles, jobs, pages, credit_transactions
+- Storage: book-bash bucket with user-scoped RLS
+- Worker: ~/book-bash/worker/worker.py (polls for jobs, runs restore.py)
+
+YOUR TASKS — enhance the existing dashboard and job pages:
+
+1. ENHANCE src/pages/dashboard.astro
+   - Poll for job status updates every 5 seconds (when jobs are in processing states)
+   - Add visual status indicators:
+     * uploaded → "Queued" (grey dot)
+     * extracting/regen_hold/regen_running → "Restoring" (pulsing gold dot)
+     * complete → "Complete" (green checkmark, download link)
+     * failed → "Failed" (red marker, error text)
+   - Show credit balance prominently at top
+   - If a job just completed, highlight it
+   - Add "Download" button for completed jobs (generates signed URL from Supabase Storage)
+   - Responsive table: on mobile, show as stacked cards instead of table rows
+
+2. CREATE src/pages/api/download/[jobId].ts
+   - Server endpoint that generates a signed download URL for a completed job's output file
+   - Verifies: user owns this job, job status is 'complete', file exists in storage
+   - Returns JSON { url: "https://..." } with a short-lived signed URL (1 hour expiry)
+   - Or redirects to the signed URL directly
+
+3. ENHANCE src/pages/jobs/[id].astro (if Station 3 created it)
+   - Add live status polling (auto-refresh every 5s during processing)
+   - Show a progress indicator: "Processing page X of Y" if possible (from worker heartbeat)
+   - Show estimated time remaining based on page count (20-90 sec/page)
+   - Download button when complete
+   - Error details when failed
+
+DESIGN CONSTRAINTS:
+- ALL colors via --tv-* CSS custom properties
+- Fonts: Playfair Display (headings), EB Garamond (body), IBM Plex Mono (labels/data/status)
+- Status indicators should use small visual elements (dots, icons via CSS) in --tv-accent / --tv-accent-2 / --tv-fg-muted
+- No purple, no gradients, no generic SaaS styling
+- Mobile-first: tables become cards on phone
+
+Read the existing dashboard.astro and jobs/[id].astro FIRST before modifying.

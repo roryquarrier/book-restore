@@ -1,0 +1,738 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getSupabaseServer } from '../../lib/supabase-server';
+
+export const prerender = false;
+
+// /jobs is protected by middleware; guard it here too.
+const { userId, email } = Astro.locals;
+if (!userId) {
+  return Astro.redirect('/auth?next=' + encodeURIComponent(Astro.url.pathname));
+}
+
+const supabase = getSupabaseServer();
+
+const { id } = Astro.params;
+const isUuid = !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+const { data: job } = isUuid
+  ? await supabase
+      .from('jobs')
+      .select(
+        'id, status, source_filename, storage_path, output_storage_path, page_count, credits_held, credits_committed, error_message, created_at, updated_at, completed_at, expires_at'
+      )
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle()
+  : { data: null };
+
+// Scoped by user_id from Clerk JWT; a miss is either a bad id or someone
+// else's record, and both should read the same from out here.
+const notFound = !job;
+
+const STATUS: Record<string, { label: string; note: string; tone: string }> = {
+  uploaded: {
+    label: 'Received',
+    note: 'The volume is on the desk and waiting to be measured.',
+    tone: 'active',
+  },
+  extracting: {
+    label: 'Extracting pages',
+    note: 'Pages are being separated and counted.',
+    tone: 'active',
+  },
+  regen_hold: {
+    label: 'Credits held',
+    note: 'Restoration in progress — credits are reserved against this job.',
+    tone: 'active',
+  },
+  regen_running: {
+    label: 'Restoring',
+    note: 'Restoration in progress — each page is being cleaned in turn.',
+    tone: 'active',
+  },
+  regen_complete: {
+    label: 'Restored',
+    note: 'Every page is done; the finished volume is being assembled.',
+    tone: 'active',
+  },
+  complete: {
+    label: 'Complete',
+    note: 'The clean copy is ready to collect.',
+    tone: 'good',
+  },
+  failed: {
+    label: 'Failed',
+    note: 'Something went wrong during restoration.',
+    tone: 'bad',
+  },
+  refunded: {
+    label: 'Refunded',
+    note: 'The job was stopped and every held credit was returned to your balance.',
+    tone: 'bad',
+  },
+};
+
+const ACTIVE = ['uploaded', 'extracting', 'regen_hold', 'regen_running', 'regen_complete'];
+const STAGES = [
+  { key: 'uploaded', label: 'Received' },
+  { key: 'extracting', label: 'Extracted' },
+  { key: 'regen_running', label: 'Restored' },
+  { key: 'complete', label: 'Returned' },
+];
+
+const status = job?.status ?? '';
+const meta = STATUS[status] ?? { label: status || 'Unknown', note: '', tone: 'active' };
+const isActive = ACTIVE.includes(status);
+const isComplete = status === 'complete';
+const isFailed = status === 'failed';
+
+// How far along the four-stage bar we are, by the furthest stage this status implies.
+const STAGE_INDEX: Record<string, number> = {
+  uploaded: 0,
+  extracting: 1,
+  regen_hold: 1,
+  regen_running: 2,
+  regen_complete: 2,
+  complete: 3,
+  failed: -1,
+  refunded: -1,
+};
+const stageIndex = STAGE_INDEX[status] ?? 0;
+
+// Collection goes through /api/download/:jobId, which owns the ownership checks, the
+// existence check and the one-hour signed URL. Nothing to sign here.
+const downloadable = isComplete && !!(job?.output_storage_path ?? job?.storage_path);
+
+// Page-level progress, when the worker files per-page rows. A zero count means
+// "no page detail reported" rather than "nothing done", so it's shown as unknown.
+let restored = 0;
+if (job && isActive) {
+  const { count } = await supabase
+    .from('pages')
+    .select('id', { count: 'exact', head: true })
+    .eq('job_id', job.id)
+    .eq('status', 'restored');
+  restored = count ?? 0;
+}
+
+const pageCount: number | null = job?.page_count ?? null;
+const hasPageDetail = restored > 0 && !!pageCount;
+const progressPct = hasPageDetail ? Math.min(100, Math.round((restored / pageCount!) * 100)) : null;
+
+/**
+ * Restoration runs 20–90 seconds a page, so the honest answer is a window, not a number.
+ * Once pages start landing we narrow it with the rate this job is actually managing.
+ * Deadlines go to the client as epoch ms and tick down there.
+ */
+const SECS_PER_PAGE_LOW = 20;
+const SECS_PER_PAGE_HIGH = 90;
+
+let eta: { lowAt: number; highAt: number } | null = null;
+if (job && isActive && pageCount) {
+  const nowMs = Date.now();
+  const elapsed = Math.max((nowMs - new Date(job.created_at).getTime()) / 1000, 1);
+  let lowRemain: number;
+  let highRemain: number;
+
+  if (hasPageDetail) {
+    const perPage = Math.max(elapsed / restored, SECS_PER_PAGE_LOW / 2);
+    const left = Math.max(pageCount - restored, 0);
+    lowRemain = left * perPage * 0.75;
+    highRemain = left * perPage * 1.35;
+  } else {
+    lowRemain = Math.max(pageCount * SECS_PER_PAGE_LOW - elapsed, 0);
+    highRemain = Math.max(pageCount * SECS_PER_PAGE_HIGH - elapsed, 60);
+  }
+
+  eta = { lowAt: nowMs + lowRemain * 1000, highAt: nowMs + highRemain * 1000 };
+}
+
+const progressLine = !job
+  ? ''
+  : hasPageDetail
+    ? `Restoring page ${Math.min(restored + 1, pageCount!)} of ${pageCount}`
+    : isActive && !pageCount
+      ? 'Measuring the volume — the page count is not settled yet.'
+      : isActive
+        ? `${pageCount} pages on the bench. This job does not report page-by-page detail.`
+        : '';
+
+const stamp = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const fmt = (value: string | null | undefined) => (value ? stamp.format(new Date(value)) : '—');
+
+const creditsLine = job
+  ? job.credits_committed > 0
+    ? `${job.credits_committed} committed`
+    : job.credits_held > 0
+      ? `${job.credits_held} held`
+      : 'None yet'
+  : '—';
+
+const shortId = job ? String(job.id).slice(0, 8).toUpperCase() : '';
+---
+
+<Base title={job ? `${job.source_filename} — Book Bash` : 'Record not found — Book Bash'}>
+  <div class="grain-overlay"></div>
+
+  <div class="job-page">
+    <nav class="job-nav">
+      <a href="/" class="job-brand">BookBash</a>
+      <div class="job-nav-right">
+        <span class="job-nav-email">{email}</span>
+        <a href="/dashboard" class="job-nav-back">← Back to Dashboard</a>
+      </div>
+    </nav>
+
+    <main class="job-main">
+      {notFound ? (
+        <section class="job-missing">
+          <p class="job-eyebrow">Record not found</p>
+          <h1>No such entry.</h1>
+          <p class="job-lede">
+            Nothing is filed under that number — it may have been cleared after seven days, or the
+            link may be mistyped. Your other restorations are all listed in the register.
+          </p>
+          <a href="/dashboard" class="job-btn-primary">Open the register</a>
+        </section>
+      ) : (
+        <>
+          <header class="job-header">
+            <p class="job-eyebrow">Accession No. {shortId} · Restoration record</p>
+            <h1>{job.source_filename}</h1>
+            <p class="job-lede">{meta.note}</p>
+          </header>
+
+          <section class={`job-status job-status--${meta.tone}`} aria-label="Current status">
+            <div class="job-status-head">
+              <span class={`job-status-dot job-status-dot--${meta.tone}`} aria-hidden="true"></span>
+              <span class="job-status-label">{meta.label}</span>
+              {isActive && (
+                <span class="job-status-beat">Last heartbeat {fmt(job.updated_at)}</span>
+              )}
+            </div>
+
+            <ol class="job-stages" aria-label="Restoration stages">
+              {STAGES.map((stage, i) => (
+                <li
+                  class={`job-stage${stageIndex >= i ? ' is-done' : ''}${stageIndex === i && isActive ? ' is-current' : ''}`}
+                >
+                  <span class="job-stage-mark" aria-hidden="true"></span>
+                  <span class="job-stage-label">{stage.label}</span>
+                </li>
+              ))}
+            </ol>
+
+            {isActive && (
+              <div class="job-progress">
+                <p class="job-progress-line" data-progress-line>{progressLine}</p>
+
+                {progressPct !== null && (
+                  <div
+                    class="job-meter"
+                    role="progressbar"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow={progressPct}
+                    aria-label="Pages restored"
+                  >
+                    <span class="job-meter-fill" style={`width: ${progressPct}%`}></span>
+                  </div>
+                )}
+
+                <p class="job-eta" data-eta role="status">
+                  {eta ? 'Estimating time remaining…' : 'Time remaining is not yet estimable.'}
+                </p>
+
+                <p class="job-refresh-note">This record refreshes itself every 5 seconds.</p>
+              </div>
+            )}
+          </section>
+
+          {isFailed && (
+            <section class="job-alert job-alert--bad" role="alert">
+              <p class="job-alert-label">Restoration stopped</p>
+              <p>
+                {job.error_message ??
+                  'The restoration could not be completed and no reason was recorded.'}
+              </p>
+              <p class="job-alert-fine">
+                Held credits are returned automatically. Deposit the book again, or write to us if
+                it fails a second time.
+              </p>
+              <a href="/upload" class="job-btn-secondary">Deposit it again</a>
+            </section>
+          )}
+
+          {isComplete && (
+            <section class="job-collect" aria-label="Collect your copy">
+              <p class="job-collect-label">Collection</p>
+              <h2>Your clean copy is ready.</h2>
+              {downloadable ? (
+                <a
+                  href={`/api/download/${job.id}?go=1`}
+                  class="job-btn-primary"
+                  data-download={job.id}
+                >
+                  Download the restored PDF
+                </a>
+              ) : (
+                <p class="job-alert-fine">No finished file is filed against this record yet.</p>
+              )}
+              <p class="job-collect-error" data-download-error hidden></p>
+              <p class="job-collect-fine">
+                The link is good for one hour. Files are cleared from the archive on{' '}
+                {fmt(job.expires_at)}.
+              </p>
+            </section>
+          )}
+
+          <section class="job-details" aria-label="Record details">
+            <p class="job-section-label">The docket</p>
+            <dl>
+              <div>
+                <dt>Source file</dt>
+                <dd class="job-file">{job.source_filename}</dd>
+              </div>
+              <div>
+                <dt>Pages</dt>
+                <dd>{job.page_count ?? 'Not yet counted'}</dd>
+              </div>
+              <div>
+                <dt>Credits</dt>
+                <dd>{creditsLine}</dd>
+              </div>
+              <div>
+                <dt>Deposited</dt>
+                <dd>{fmt(job.created_at)}</dd>
+              </div>
+              <div>
+                <dt>Last updated</dt>
+                <dd>{fmt(job.updated_at)}</dd>
+              </div>
+              <div>
+                <dt>Completed</dt>
+                <dd>{fmt(job.completed_at)}</dd>
+              </div>
+              <div>
+                <dt>Cleared from archive</dt>
+                <dd>{fmt(job.expires_at)}</dd>
+              </div>
+              <div>
+                <dt>Reference</dt>
+                <dd class="job-ref">{job.id}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <p class="job-back">
+            <a href="/dashboard">← Back to Dashboard</a>
+            <a href="/upload">Deposit another book →</a>
+          </p>
+        </>
+      )}
+    </main>
+
+    <footer class="job-footer">
+      <span>Book Bash — Clean copies of any book.</span>
+      <a href="/dashboard">Back to Dashboard</a>
+    </footer>
+  </div>
+</Base>
+
+<script is:inline define:vars={{ isActive, status, jobId: job?.id ?? null, restored, eta }}>
+  (() => {
+    // Two clocks: a 5s status poll that reloads only when the record actually moves
+    // (so the whole page stays server-rendered), and a 1s tick for the ETA countdown.
+    const POLL_MS = 5000;
+
+    const etaEl = document.querySelector('[data-eta]');
+    const lineEl = document.querySelector('[data-progress-line]');
+
+    const words = (secs) => {
+      if (secs <= 45) return 'under a minute';
+      const mins = Math.round(secs / 60);
+      if (mins < 60) return `${mins} min`;
+      const hours = Math.floor(mins / 60);
+      const rest = mins % 60;
+      return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+    };
+
+    const paintEta = () => {
+      if (!etaEl || !eta) return;
+      const now = Date.now();
+      const low = Math.max((eta.lowAt - now) / 1000, 0);
+      const high = Math.max((eta.highAt - now) / 1000, 0);
+      if (high <= 30) {
+        etaEl.textContent = 'Any moment now — finishing up.';
+      } else if (low <= 30) {
+        etaEl.textContent = `Estimated: up to ${words(high)} remaining.`;
+      } else {
+        etaEl.textContent = `Estimated ${words(low)} – ${words(high)} remaining.`;
+      }
+    };
+
+    if (isActive && eta) {
+      paintEta();
+      setInterval(paintEta, 1000);
+    }
+
+    if (isActive && jobId) {
+      let seenRestored = restored;
+
+      const tick = async () => {
+        if (document.hidden) return;
+        try {
+          const res = await fetch(`/api/jobs/status?id=${encodeURIComponent(jobId)}`, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          });
+          if (res.status === 401 || res.status === 404) {
+            window.location.reload();
+            return;
+          }
+          if (!res.ok) return;
+          const data = await res.json();
+
+          // A status change rewrites the whole plate — let the server do it.
+          if (data.job.status !== status) {
+            window.location.reload();
+            return;
+          }
+
+          // Same status, but pages have landed: show the new count straight away, then
+          // reload so the meter and the estimate are re-derived from the new rate.
+          const done = data.progress?.done ?? 0;
+          const total = data.progress?.total ?? null;
+          if (done !== seenRestored && done > 0 && total) {
+            seenRestored = done;
+            if (lineEl) lineEl.textContent = `Restoring page ${Math.min(done + 1, total)} of ${total}`;
+            window.location.reload();
+          }
+        } catch {
+          // Transient poll failure — the next tick tries again.
+        }
+      };
+
+      setInterval(tick, POLL_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) tick();
+      });
+    }
+
+    // The collection link works as a plain href; JS upgrades it so a cleared or
+    // unavailable file explains itself instead of showing a raw JSON error page.
+    const link = document.querySelector('[data-download]');
+    const errorEl = document.querySelector('[data-download-error]');
+    if (link) {
+      link.addEventListener('click', async (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+
+        const label = link.textContent;
+        link.textContent = 'Preparing the link…';
+        link.setAttribute('aria-busy', 'true');
+        if (errorEl) errorEl.hidden = true;
+
+        try {
+          const res = await fetch(`/api/download/${encodeURIComponent(link.dataset.download)}`, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok && body.url) {
+            window.location.href = body.url;
+          } else if (errorEl) {
+            errorEl.textContent = body.error || 'The collection link could not be issued.';
+            errorEl.hidden = false;
+          }
+        } catch {
+          window.location.href = link.href;
+        } finally {
+          link.textContent = label;
+          link.removeAttribute('aria-busy');
+        }
+      });
+    }
+  })();
+</script>
+
+<style is:global>
+  .grain-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: var(--tv-grade-grain);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .job-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--tv-bg); }
+
+  /* NAV */
+  .job-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: calc(var(--tv-space-unit) * 3);
+    max-width: 64rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .job-nav { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .job-brand {
+    font-family: var(--tv-font-heading); font-weight: 700; font-size: 1.35rem;
+    color: var(--tv-accent-2);
+  }
+  .job-nav-right { display: flex; align-items: center; gap: calc(var(--tv-space-unit) * 4); }
+  .job-nav-email {
+    display: none;
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .job-nav-email { display: inline; } }
+  .job-nav-back {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 1);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .job-nav-back:hover { color: var(--tv-accent); border-bottom-color: var(--tv-accent); }
+  .job-nav-back:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* MAIN */
+  .job-main {
+    flex: 1; max-width: 64rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 4)
+             calc(var(--tv-space-unit) * 12);
+  }
+  @media (min-width: 700px) {
+    .job-main {
+      padding: calc(var(--tv-space-unit) * 8) calc(var(--tv-space-unit) * 6)
+               calc(var(--tv-space-unit) * 16);
+    }
+  }
+
+  .job-eyebrow {
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .job-header h1, .job-missing h1 {
+    font-family: var(--tv-font-heading);
+    font-size: clamp(1.9rem, 5vw, 3rem);
+    font-weight: var(--tv-h1-weight);
+    letter-spacing: var(--tv-h1-tracking);
+    line-height: var(--tv-h1-leading);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+    overflow-wrap: anywhere;
+  }
+  .job-lede { color: var(--tv-fg-muted); max-width: 50ch; }
+
+  /* STATUS PLATE */
+  .job-status {
+    margin-top: calc(var(--tv-space-unit) * 8);
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .job-status { padding: calc(var(--tv-space-unit) * 6); } }
+  .job-status--active { border-left-color: var(--tv-accent); }
+  .job-status--good { border-left-color: var(--tv-ok); }
+  .job-status--bad { border-left-color: var(--tv-alert); }
+
+  .job-status-head {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: calc(var(--tv-space-unit) * 2);
+  }
+  .job-status-dot {
+    width: 0.6rem; height: 0.6rem; border-radius: 50%;
+    background: var(--tv-fg-muted); flex: none;
+  }
+  .job-status-dot--active { background: var(--tv-accent); animation: job-pulse 1.8s ease-in-out infinite; }
+  .job-status-dot--good { background: var(--tv-ok); }
+  .job-status-dot--bad { background: var(--tv-alert); border-radius: 0; }
+  @keyframes job-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+  .job-status-label {
+    font-family: var(--tv-font-mono); font-size: 0.85rem; letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .job-status-beat {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted); margin-left: auto;
+  }
+
+  /* STAGE RAIL */
+  .job-stages {
+    list-style: none; display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: calc(var(--tv-space-unit) * 1);
+    margin-top: calc(var(--tv-space-unit) * 5);
+  }
+  .job-stage { display: flex; flex-direction: column; gap: calc(var(--tv-space-unit) * 1.5); }
+  .job-stage-mark {
+    height: 0.35rem; background: var(--tv-bg);
+    border: var(--tv-border-width) solid var(--tv-border);
+  }
+  .job-stage.is-done .job-stage-mark { background: var(--tv-accent); border-color: var(--tv-accent); }
+  .job-stage.is-current .job-stage-mark { animation: job-fade 1.8s ease-in-out infinite; }
+  @keyframes job-fade { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .job-stage-label {
+    font-family: var(--tv-font-mono); font-size: 0.62rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .job-stage.is-done .job-stage-label { color: var(--tv-fg); }
+
+  /* PROGRESS */
+  .job-progress { margin-top: calc(var(--tv-space-unit) * 5); }
+  .job-progress-line {
+    font-family: var(--tv-font-mono); font-size: 0.78rem; letter-spacing: 0.08em;
+    color: var(--tv-fg);
+  }
+  .job-meter {
+    margin-top: calc(var(--tv-space-unit) * 2);
+    height: 0.5rem; background: var(--tv-bg);
+    border: var(--tv-border-width) solid var(--tv-border);
+    overflow: hidden;
+  }
+  .job-meter-fill {
+    display: block; height: 100%; background: var(--tv-accent);
+    transition: width 0.6s ease;
+  }
+  .job-eta {
+    margin-top: calc(var(--tv-space-unit) * 2);
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.1em;
+    color: var(--tv-fg-muted);
+  }
+
+  .job-refresh-note {
+    margin-top: calc(var(--tv-space-unit) * 3);
+    font-family: var(--tv-font-mono); font-size: 0.66rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+
+  /* ALERTS */
+  .job-alert {
+    margin-top: calc(var(--tv-space-unit) * 6);
+    border: var(--tv-border-width) solid var(--tv-alert);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-alert);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 4);
+  }
+  .job-alert-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--tv-alert);
+    margin-bottom: calc(var(--tv-space-unit) * 2);
+  }
+  .job-alert-fine {
+    margin-top: calc(var(--tv-space-unit) * 2);
+    font-size: 0.9rem; color: var(--tv-fg-muted);
+  }
+  .job-alert .job-btn-secondary { margin-top: calc(var(--tv-space-unit) * 4); }
+
+  /* COLLECTION */
+  .job-collect {
+    margin-top: calc(var(--tv-space-unit) * 6);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .job-collect { padding: calc(var(--tv-space-unit) * 6); } }
+  .job-collect-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    margin-bottom: calc(var(--tv-space-unit) * 2);
+  }
+  .job-collect h2 {
+    font-family: var(--tv-font-heading); font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700; margin-bottom: calc(var(--tv-space-unit) * 4);
+  }
+  .job-collect-error {
+    margin-top: calc(var(--tv-space-unit) * 3);
+    font-size: 0.9rem; color: var(--tv-alert);
+  }
+  .job-collect-error[hidden] { display: none; }
+  .job-collect-fine {
+    margin-top: calc(var(--tv-space-unit) * 3);
+    font-size: 0.9rem; color: var(--tv-fg-muted);
+  }
+
+  .job-btn-primary {
+    display: inline-block; font-family: var(--tv-font-heading); font-weight: 600; font-size: 1.05rem;
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 7);
+    background: var(--tv-accent); color: var(--tv-bg); border: none; cursor: pointer;
+    border-radius: var(--tv-radius);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .job-btn-primary:hover { transform: translateY(-2px); box-shadow: var(--tv-shadow-lift); }
+  .job-btn-primary:focus-visible { outline: 3px solid var(--tv-accent-2); outline-offset: 3px; }
+  .job-btn-secondary {
+    display: inline-block; font-family: var(--tv-font-heading); font-weight: 500; font-size: 1rem;
+    padding-bottom: calc(var(--tv-space-unit) * 1);
+    border-bottom: 2px solid var(--tv-accent);
+  }
+  .job-btn-secondary:hover { color: var(--tv-accent); }
+  .job-btn-secondary:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* DOCKET */
+  .job-details { margin-top: calc(var(--tv-space-unit) * 10); }
+  .job-section-label {
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 2);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .job-details dl > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 3);
+    padding: calc(var(--tv-space-unit) * 2.5) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .job-details dt {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-fg-muted); white-space: nowrap;
+  }
+  .job-details dd {
+    font-family: var(--tv-font-mono); font-size: 0.88rem; text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .job-file { font-family: var(--tv-font-body) !important; font-size: 1rem !important; }
+  .job-ref { font-size: 0.72rem !important; color: var(--tv-fg-muted); }
+
+  .job-back {
+    display: flex; flex-wrap: wrap; justify-content: space-between;
+    gap: calc(var(--tv-space-unit) * 3);
+    margin-top: calc(var(--tv-space-unit) * 8);
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .job-back a:hover { color: var(--tv-accent); }
+  .job-back a:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* MISSING */
+  .job-missing { max-width: 46ch; }
+  .job-missing .job-btn-primary { margin-top: calc(var(--tv-space-unit) * 6); }
+
+  /* FOOTER */
+  .job-footer {
+    display: flex; flex-wrap: wrap; gap: calc(var(--tv-space-unit) * 2);
+    justify-content: space-between;
+    max-width: 64rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    font-size: 0.85rem; color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .job-footer { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .job-footer a:hover { color: var(--tv-accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .job-page *, .job-page *::before, .job-page *::after {
+      transition: none !important; animation: none !important;
+    }
+  }
+</style>

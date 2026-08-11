@@ -1,0 +1,61 @@
+You are building Station 3 (Upload + Storage) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/
+STACK: Astro 7 + React 19 + Tailwind 4 + Supabase SSR (@astrojs/node adapter)
+
+The project already has:
+- Astro project with React + Tailwind + Node SSR adapter
+- src/lib/supabase.ts — browser client
+- src/lib/supabase-server.ts — server client
+- src/middleware.ts — auth protection (redirects to /auth if not logged in)
+- src/pages/auth.astro — sign in/up
+- src/pages/dashboard.astro — shows credits, has "Upload a Book" link to /upload
+- src/styles/global.css — --tv-* CSS tokens (navy/gold/cream Archival Museum palette)
+- Supabase project: book-bash (ref: ruldtseddrklbviloule), DB migrated
+- Storage bucket: "book-bash" (private), RLS policies: users access own folder (auth.uid()::text)
+- DB tables: profiles, jobs, pages, credit_transactions
+- jobs schema: id, user_id, status, source_filename, storage_path, output_storage_path, page_count, credits_held, credits_committed, error_message, created_at, updated_at, completed_at, expires_at
+
+YOUR TASKS:
+
+1. CREATE src/pages/upload.astro
+   - Protected page (middleware handles this — just use the server-side supabase client to get user)
+   - React island with a drag-and-drop file upload zone (PDF only, 50MB max)
+   - On upload:
+     a. Validate file type (application/pdf) and size (< 50MB)
+     b. Upload to Supabase Storage: book-bash/{user_id}/{timestamp}_{filename}
+     c. Create a job row: status='uploaded', source_filename, storage_path
+     d. Redirect to /dashboard with the job visible (or to /jobs/[id] — but that doesn't exist yet, so redirect to /dashboard)
+   - Show upload progress
+   - Show errors inline (wrong file type, too large, network error)
+   - Archival Museum design: the upload zone should look like a museum intake desk, not a generic dropzone. Use --tv-* tokens, serif headings, mono labels.
+   - "Back to Dashboard" link
+   - Show estimated cost: "X pages × 3 credits = Y credits" (but we don't know page count yet, so just show "3 credits per page")
+
+2. CREATE src/pages/api/upload.ts
+   - Alternative server-side upload endpoint (multipart form POST)
+   - Receives the PDF, validates, uploads to Supabase Storage, creates job row
+   - Returns JSON with job ID
+   - This is the fallback if the client-side Supabase storage upload hits RLS issues
+   - Use the service role key for storage upload (server-side only)
+
+3. CREATE src/pages/jobs/[id].astro
+   - Protected page showing a single job's status
+   - Shows: filename, status (with a visual status indicator), page count, credits held, timestamps
+   - If status is 'complete': show download button (signed URL from Supabase Storage)
+   - If status is 'failed': show error message
+   - If status is processing (regen_hold, regen_running): show "Restoration in progress" with the heartbeat updated_at time
+   - Auto-refresh every 5 seconds when job is in a processing state (meta refresh or simple JS polling)
+   - Archival Museum design
+
+DESIGN CONSTRAINTS:
+- ALL colors via --tv-* CSS custom properties. No hardcoded hex.
+- Fonts: Playfair Display (headings), EB Garamond (body), IBM Plex Mono (labels/data)
+- No purple gradients, no generic SaaS dropzone styling
+- The upload zone should feel like depositing a document at a museum archive desk
+- Mobile-first responsive
+- Error states must be clear and helpful, not technical
+
+DO NOT MODIFY: src/pages/index.astro, src/styles/global.css, src/layouts/Base.astro, src/pages/auth.astro, src/middleware.ts
+
+Read the existing files first (especially dashboard.astro and supabase-server.ts) to match patterns.

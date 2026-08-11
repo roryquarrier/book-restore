@@ -1,0 +1,65 @@
+You are building Station 4 (Worker) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/worker/
+This is a Python worker process — NOT part of the Astro frontend.
+
+CONTEXT:
+- The production restore engine exists at ~/book-restorer/restore.py (1,213 lines, production-tested)
+- Supabase project: book-bash (ref: ruldtseddrklbviloule)
+- DB tables: profiles, jobs (status: uploaded→extracting→regen_hold→regen_running→regen_complete→complete/failed/refunded), pages, credit_transactions
+- DB functions: hold_credits(job_id, amount), commit_credits(job_id, amount), refund_credits(job_id, amount)
+- Storage bucket: "book-bash" (private), files stored as {user_id}/{timestamp}_{filename}
+- Credit logic: 3 credits per page. Hold at start, commit on success, refund on failure.
+- restore.py CLI: `python restore.py <input_pdf> --output <output_dir> --provider openai --quality medium`
+- OpenAI key in ~/book-restorer/.env as OPENAI_API_KEY
+
+YOUR TASKS:
+
+1. CREATE ~/book-bash/worker/worker.py
+   The main worker loop:
+   a. Connect to Supabase using service role key (from ~/book-bash/.env)
+   b. Poll the jobs table every 5 seconds for status='uploaded' jobs
+   c. For each job found:
+      - Claim it: UPDATE jobs SET status='extracting', updated_at=now() WHERE id=? AND status='uploaded' (atomic claim, prevents double-processing)
+      - Download the source PDF from Supabase Storage to a local temp dir (/tmp/book-bash-jobs/{job_id}/)
+      - Count pages (use pdf2image or PyPDF2 — whatever is available in ~/book-restorer/.venv)
+      - Enforce 80-page hard cap. If >80 pages, mark job as 'failed' with error message, skip
+      - Calculate cost: page_count * 3 credits
+      - Call hold_credits(job_id, cost) via Supabase RPC. If hold fails (insufficient credits), mark job failed
+      - Update job: status='regen_running', page_count=N, updated_at=now()
+      - Start a heartbeat thread: UPDATE jobs SET updated_at=now() WHERE id=? every 30 seconds
+      - Call restore.py: subprocess python ~/book-restorer/restore.py <pdf_path> --output /tmp/book-bash-jobs/{job_id}/output --provider openai --quality medium
+      - Pass OPENAI_API_KEY from ~/book-restorer/.env
+      - Wait for restore.py to complete (30-min max timeout)
+      - On success:
+        * Upload the restored PDF to Supabase Storage: book-bash/{user_id}/{timestamp}_restored.pdf
+        * Update job: output_storage_path, status='complete' (or call commit_credits)
+        * Call commit_credits(job_id, cost) via Supabase RPC
+        * Stop heartbeat
+        * Clean up local temp dir
+      - On failure:
+        * Call refund_credits(job_id, cost) via Supabase RPC
+        * Update job: status='failed', error_message=<the error>
+        * Stop heartbeat
+        * Log the error
+   d. Dead-man switch: if updated_at > 5 minutes stale on a 'regen_running' job, another worker can claim it (reset status to 'uploaded')
+   e. Graceful shutdown on SIGTERM/SIGINT (stop heartbeat, finish current job, exit)
+
+2. CREATE ~/book-bash/worker/requirements.txt
+   - supabase (Python client)
+   - PyPDF2 or pdf2image (for page counting — check what's already in ~/book-restorer/.venv)
+   - python-dotenv
+
+3. CREATE ~/book-bash/worker/start.sh
+   - Shell script that activates the book-restorer venv (for OpenCV/numpy), installs worker deps, and runs worker.py
+   - Sources OPENAI_API_KEY from ~/book-restorer/.env
+
+IMPORTANT NOTES:
+- The worker runs locally on this WSL machine for development. Production deployment comes later.
+- restore.py is at ~/book-restorer/restore.py — it's a production CLI tool, don't modify it, just call it
+- The worker must use the service role key for Supabase (bypasses RLS — it needs to read all jobs)
+- Use Supabase RPC calls for the credit functions (hold_credits, commit_credits, refund_credits) — they're SECURITY DEFINER functions
+- Heartbeat is critical: if the worker crashes, the dead-man switch lets another worker pick up stale jobs
+- Log everything to stdout AND to ~/book-bash/worker/worker.log
+
+Read ~/book-restorer/restore.py first to understand its CLI interface, then read ~/book-bash/.env for the Supabase credentials.

@@ -1,0 +1,6 @@
+# Station 4 worker dependencies.
+# Installed on top of the book-restorer venv, which already provides
+# pymupdf (page counting), opencv, numpy and openai for restore.py.
+supabase>=2.10,<3
+python-dotenv>=1.0
+pymupdf>=1.24

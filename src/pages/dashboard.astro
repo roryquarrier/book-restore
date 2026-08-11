@@ -1,0 +1,1071 @@
+---
+import Base from '../layouts/Base.astro';
+import { CREDIT_PACKS, PACK_IDS, formatPrice, perCredit } from '../lib/stripe';
+import { getSupabaseServer } from '../lib/supabase-server';
+import { SignOutButton } from '@clerk/astro/components';
+
+export const prerender = false;
+
+// Middleware guarantees a user here; it redirects to /auth otherwise.
+const { userId, email, profile } = Astro.locals;
+
+const supabase = getSupabaseServer();
+
+const { data: jobs, error: jobsError } = await supabase
+  .from('jobs')
+  .select(
+    'id, status, source_filename, page_count, credits_committed, error_message, created_at, completed_at, output_storage_path, storage_path'
+  )
+  .eq('user_id', userId!)
+  .order('created_at', { ascending: false })
+  .limit(25);
+
+const credits = profile?.credits ?? 0;
+const pending = profile?.pending_credits ?? 0;
+
+const dateFmt = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
+/**
+ * One status vocabulary for the register, shared with the poller below via define:vars
+ * so a row repainted by JS is indistinguishable from one rendered by the server.
+ * Tones: queued (grey dot) · working (pulsing gold dot) · done (green check) · bad (red mark).
+ */
+const STATUS: Record<string, { label: string; tone: string }> = {
+  uploaded: { label: 'Queued', tone: 'queued' },
+  extracting: { label: 'Restoring', tone: 'working' },
+  regen_hold: { label: 'Restoring', tone: 'working' },
+  regen_running: { label: 'Restoring', tone: 'working' },
+  regen_complete: { label: 'Restoring', tone: 'working' },
+  complete: { label: 'Complete', tone: 'done' },
+  failed: { label: 'Failed', tone: 'bad' },
+  refunded: { label: 'Refunded', tone: 'bad' },
+};
+
+const ACTIVE = ['uploaded', 'extracting', 'regen_hold', 'regen_running', 'regen_complete'];
+
+/** A job finished this recently gets flagged on arrival, so a returning tab still shows it. */
+const FRESH_WINDOW_MS = 5 * 60 * 1000;
+const now = Date.now();
+
+const rows = (jobs ?? []).map((job: any, i: number) => ({
+  ...job,
+  ordinal: String((jobs?.length ?? 0) - i).padStart(3, '0'),
+  meta: STATUS[job.status] ?? { label: job.status, tone: 'queued' },
+  downloadable: job.status === 'complete' && !!(job.output_storage_path ?? job.storage_path),
+  fresh:
+    job.status === 'complete' &&
+    !!job.completed_at &&
+    now - new Date(job.completed_at).getTime() < FRESH_WINDOW_MS,
+}));
+
+const anyActive = rows.some((job) => ACTIVE.includes(job.status));
+const memberSince = profile?.created_at ? dateFmt.format(new Date(profile.created_at)) : '—';
+
+/**
+ * Terms of acquisition. Stripe redirects back here with ?purchased=1 or ?canceled=1;
+ * the credit is granted by the webhook, which may land a moment after the browser
+ * does, so the flash below is paired with a short poll of /api/jobs/status.
+ */
+const NUMERALS = ['I', 'II', 'III'];
+const BASE_RATE = CREDIT_PACKS.small.priceCents / CREDIT_PACKS.small.credits;
+
+const packs = PACK_IDS.map((id, i) => {
+  const pack = CREDIT_PACKS[id];
+  const saved = 1 - pack.priceCents / pack.credits / BASE_RATE;
+  return {
+    ...pack,
+    numeral: NUMERALS[i] ?? String(i + 1),
+    price: formatPrice(pack.priceCents),
+    rate: perCredit(pack),
+    pages: Math.floor(pack.credits / 3),
+    saving: saved > 0.01 ? `${Math.round(saved * 100)}% better rate` : null,
+  };
+});
+
+const purchased = Astro.url.searchParams.get('purchased') === '1';
+const canceled = Astro.url.searchParams.get('canceled') === '1';
+---
+
+<Base title="Dashboard — Book Bash">
+  <div class="grain-overlay"></div>
+
+  <div class="dash-page">
+    <nav class="dash-nav">
+      <a href="/" class="dash-brand">BookBash</a>
+      <div class="dash-nav-right">
+        <span class="dash-nav-credits" title="Credits available">
+          <span data-field="credits">{credits}</span> cr
+        </span>
+        <span class="dash-nav-email">{email}</span>
+          <SignOutButton class="dash-signout">
+            Sign Out
+          </SignOutButton>
+      </div>
+    </nav>
+
+    <main class="dash-main">
+      {purchased && (
+        <div class="buy-flash buy-flash--ok" role="status" data-buy-flash>
+          <p class="buy-flash-title">Credits added.</p>
+          <p>
+            Your payment went through and the credits are being entered in the ledger — the
+            balance below updates itself the moment they land.
+          </p>
+        </div>
+      )}
+
+      {canceled && (
+        <div class="buy-flash buy-flash--quiet" role="status">
+          <p class="buy-flash-title">Nothing was charged.</p>
+          <p>You left the payment desk before finishing. The terms are still open below.</p>
+        </div>
+      )}
+
+      <header class="dash-header">
+        <p class="dash-eyebrow">Accession Record</p>
+        <h1>Welcome back.</h1>
+        <p class="dash-lede">
+          Filed under <strong>{email}</strong> · member since {memberSince}
+        </p>
+      </header>
+
+      <section class="dash-balance" aria-label="Credit balance">
+        <div class="dash-balance-figure">
+          <span class="dash-balance-num" data-field="credits">{credits}</span>
+          <span class="dash-balance-unit">credits available</span>
+        </div>
+        <dl class="dash-balance-meta">
+          <div>
+            <dt>Held against jobs</dt>
+            <dd data-field="pending">{pending}</dd>
+          </div>
+          <div>
+            <dt>Rate</dt>
+            <dd>3 credits · 1 page</dd>
+          </div>
+          <div>
+            <dt>Pages you can restore</dt>
+            <dd data-field="pages-affordable">{Math.floor(credits / 3)}</dd>
+          </div>
+        </dl>
+        <div class="dash-actions">
+          <a href="/upload" class="dash-btn-primary">Upload a Book</a>
+          <a href="/#how" class="dash-btn-secondary">How restoration works</a>
+        </div>
+      </section>
+
+      <section class="buy" aria-labelledby="buy-heading">
+        <p class="dash-section-label">Terms of Acquisition · Credits</p>
+        <h2 id="buy-heading">Buy credits</h2>
+        <p class="buy-lede">
+          Three credits restore one page. Credits never expire, and they are spent only when a
+          restoration completes — a failed job returns them to your balance. Payment is handled
+          by Stripe; no card details reach this archive.
+        </p>
+
+        <p class="buy-error" role="alert" data-buy-error hidden></p>
+
+        <ol class="buy-list">
+          {packs.map((pack) => (
+            <li class={`buy-slip buy-slip--${pack.id}`}>
+              <span class="buy-numeral" aria-hidden="true">{pack.numeral}</span>
+
+              <div class="buy-slip-head">
+                <h3>{pack.label}</h3>
+                <p class="buy-slip-note">{pack.note}</p>
+              </div>
+
+              <dl class="buy-figures">
+                <div>
+                  <dt>Credits</dt>
+                  <dd>{pack.credits}</dd>
+                </div>
+                <div>
+                  <dt>Pages</dt>
+                  <dd>≈ {pack.pages}</dd>
+                </div>
+                <div>
+                  <dt>Per credit</dt>
+                  <dd>{pack.rate}</dd>
+                </div>
+              </dl>
+
+              <div class="buy-terms">
+                <span class="buy-price">{pack.price}</span>
+                <span class={`buy-saving${!pack.saving ? ' buy-saving--none' : ''}`}>
+                  {pack.saving ?? 'Base rate'}
+                </span>
+                <button type="button" class="buy-btn" data-pack={pack.id}>
+                  Acquire
+                  <span class="dash-sr-only">
+                    {` ${pack.credits} credits for ${pack.price}`}
+                  </span>
+                </button>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section class="dash-jobs" aria-labelledby="jobs-heading">
+        <p class="dash-section-label">The Register · Your restorations</p>
+        <h2 id="jobs-heading">Job history</h2>
+
+        {jobsError && (
+          <p class="dash-error" role="alert">
+            The register could not be read just now: {jobsError.message}
+          </p>
+        )}
+
+        {!jobsError && rows.length === 0 ? (
+          <div class="dash-empty">
+            <p class="dash-empty-title">No entries yet.</p>
+            <p>
+              Your first restoration will be filed here — filename, page count, status and the
+              credits it cost. Drop in a book to open the record.
+            </p>
+            <a href="/upload" class="dash-btn-primary">Upload a Book</a>
+          </div>
+        ) : null}
+
+        {rows.length > 0 && (
+          <div class="dash-table-wrap">
+            <p class="dash-live-note" data-live-note hidden={!anyActive}>
+              <span class="dash-dot dash-dot--working" aria-hidden="true"></span>
+              Live — this register refreshes itself every 5 seconds.
+            </p>
+
+            <table class="dash-table" data-register>
+              <caption class="dash-sr-only">
+                Your restorations, newest first. Status updates live while jobs are running.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">No.</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Pages</th>
+                  <th scope="col">Credits</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Filed</th>
+                  <th scope="col">Collect</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((job: any) => (
+                  <tr
+                    data-job-row
+                    data-job-id={job.id}
+                    data-status={job.status}
+                    class={job.fresh ? 'is-fresh' : undefined}
+                  >
+                    <td class="dash-cell-num" data-label="No.">{job.ordinal}</td>
+                    <td class="dash-cell-file" data-label="Source">
+                      <a href={`/jobs/${job.id}`} class="dash-cell-link">{job.source_filename}</a>
+                      <span class="dash-fresh-flag" data-fresh-flag hidden={!job.fresh}>
+                        Just finished
+                      </span>
+                    </td>
+                    <td class="dash-cell-num" data-label="Pages" data-field="page_count">
+                      {job.page_count ?? '—'}
+                    </td>
+                    <td class="dash-cell-num" data-label="Credits" data-field="credits_committed">
+                      {job.credits_committed || '—'}
+                    </td>
+                    <td data-label="Status" data-field="status">
+                      <span class={`dash-status dash-status--${job.meta.tone}`}>
+                        {job.meta.tone === 'done' ? (
+                          <span class="dash-dot dash-dot--done" aria-hidden="true">✓</span>
+                        ) : (
+                          <span class={`dash-dot dash-dot--${job.meta.tone}`} aria-hidden="true"></span>
+                        )}
+                        <span class="dash-status-text">{job.meta.label}</span>
+                      </span>
+                      {job.meta.tone === 'bad' && job.error_message && (
+                        <span class="dash-status-note">{job.error_message}</span>
+                      )}
+                    </td>
+                    <td class="dash-cell-num" data-label="Filed">
+                      {dateFmt.format(new Date(job.created_at))}
+                    </td>
+                    <td data-label="Collect" data-field="action">
+                      {job.downloadable ? (
+                        <a
+                          class="dash-download"
+                          href={`/api/download/${job.id}?go=1`}
+                          data-download={job.id}
+                        >
+                          Download
+                        </a>
+                      ) : (
+                        <a class="dash-cell-quiet" href={`/jobs/${job.id}`}>Record →</a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </main>
+
+    <footer class="dash-footer">
+      <span>Book Bash — Clean copies of any book.</span>
+      <a href="/">Back to the catalogue</a>
+    </footer>
+  </div>
+</Base>
+
+<script is:inline define:vars={{ STATUS, anyActive }}>
+  (() => {
+    const POLL_MS = 5000;
+    const table = document.querySelector('[data-register]');
+    if (!table) return;
+
+    const liveNote = document.querySelector('[data-live-note]');
+    let timer = null;
+    let stopped = false;
+
+    const esc = (value) =>
+      String(value ?? '').replace(
+        /[&<>"']/g,
+        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+      );
+
+    const dot = (tone) =>
+      tone === 'done'
+        ? '<span class="dash-dot dash-dot--done" aria-hidden="true">✓</span>'
+        : `<span class="dash-dot dash-dot--${tone}" aria-hidden="true"></span>`;
+
+    // Mirrors the server-rendered status cell exactly.
+    const statusHtml = (job) => {
+      const meta = STATUS[job.status] || { label: job.status, tone: 'queued' };
+      const note =
+        meta.tone === 'bad' && job.error_message
+          ? `<span class="dash-status-note">${esc(job.error_message)}</span>`
+          : '';
+      return `<span class="dash-status dash-status--${meta.tone}">${dot(meta.tone)}<span class="dash-status-text">${esc(meta.label)}</span></span>${note}`;
+    };
+
+    const actionHtml = (job) =>
+      job.downloadable
+        ? `<a class="dash-download" href="/api/download/${encodeURIComponent(job.id)}?go=1" data-download="${esc(job.id)}">Download</a>`
+        : `<a class="dash-cell-quiet" href="/jobs/${encodeURIComponent(job.id)}">Record →</a>`;
+
+    const setField = (row, field, html) => {
+      const cell = row.querySelector(`[data-field="${field}"]`);
+      if (cell && cell.innerHTML !== html) cell.innerHTML = html;
+    };
+
+    const apply = (data) => {
+      for (const el of document.querySelectorAll('[data-field="credits"]')) {
+        el.textContent = String(data.credits);
+      }
+      const pendingEl = document.querySelector('[data-field="pending"]');
+      if (pendingEl) pendingEl.textContent = String(data.pending);
+      const affordable = document.querySelector('[data-field="pages-affordable"]');
+      if (affordable) affordable.textContent = String(Math.floor(data.credits / 3));
+
+      const rows = new Map(
+        [...table.querySelectorAll('[data-job-row]')].map((row) => [row.dataset.jobId, row])
+      );
+
+      // A job filed in another tab can't be slotted in safely — take the whole page fresh.
+      if (data.jobs.some((job) => !rows.has(job.id))) {
+        window.location.reload();
+        return;
+      }
+
+      for (const job of data.jobs) {
+        const row = rows.get(job.id);
+        if (!row || row.dataset.status === job.status) {
+          if (row) setField(row, 'page_count', esc(job.page_count ?? '—'));
+          continue;
+        }
+
+        const justFinished = job.status === 'complete';
+        row.dataset.status = job.status;
+        setField(row, 'page_count', esc(job.page_count ?? '—'));
+        setField(row, 'credits_committed', esc(job.credits_committed || '—'));
+        setField(row, 'status', statusHtml(job));
+        setField(row, 'action', actionHtml(job));
+
+        if (justFinished) {
+          row.classList.add('is-fresh');
+          const flag = row.querySelector('[data-fresh-flag]');
+          if (flag) flag.hidden = false;
+        }
+      }
+
+      if (!data.anyActive) {
+        stopped = true;
+        if (liveNote) liveNote.hidden = true;
+      } else if (liveNote) {
+        liveNote.hidden = false;
+      }
+    };
+
+    const schedule = () => {
+      if (stopped) return;
+      clearTimeout(timer);
+      timer = setTimeout(tick, POLL_MS);
+    };
+
+    async function tick() {
+      if (stopped) return;
+      if (document.hidden) {
+        schedule();
+        return;
+      }
+      try {
+        const res = await fetch('/api/jobs/status', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (res.status === 401) {
+          window.location.reload();
+          return;
+        }
+        if (res.ok) apply(await res.json());
+      } catch {
+        // A dropped poll is not worth surfacing; the next tick tries again.
+      }
+      schedule();
+    }
+
+    if (anyActive) schedule();
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && !stopped) tick();
+    });
+
+    // Collection links work as plain hrefs; JS upgrades them so a stale or cleared
+    // file reports why instead of dumping a JSON error page in the tab.
+    table.addEventListener('click', async (event) => {
+      const link = event.target.closest('[data-download]');
+      if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+
+      const original = link.textContent;
+      link.textContent = 'Preparing…';
+      link.setAttribute('aria-busy', 'true');
+
+      try {
+        const res = await fetch(`/api/download/${encodeURIComponent(link.dataset.download)}`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.url) {
+          window.location.href = body.url;
+          link.textContent = original;
+        } else {
+          link.textContent = 'Unavailable';
+          const cell = link.closest('td');
+          if (cell && !cell.querySelector('.dash-status-note')) {
+            const note = document.createElement('span');
+            note.className = 'dash-status-note';
+            note.setAttribute('role', 'alert');
+            note.textContent = body.error || 'The collection link could not be issued.';
+            cell.appendChild(note);
+          }
+        }
+      } catch {
+        link.textContent = original;
+        window.location.href = link.href;
+      } finally {
+        link.removeAttribute('aria-busy');
+      }
+    });
+  })();
+</script>
+
+<script is:inline>
+  // The acquisition desk: opens a Stripe Checkout Session, then watches for the
+  // webhook's credit to arrive after Stripe sends the buyer back here.
+  (() => {
+    const errorEl = document.querySelector('[data-buy-error]');
+
+    const fail = (message) => {
+      if (!errorEl) return;
+      errorEl.textContent = message;
+      errorEl.hidden = false;
+    };
+
+    for (const button of document.querySelectorAll('[data-pack]')) {
+      button.addEventListener('click', async () => {
+        if (errorEl) errorEl.hidden = true;
+
+        const original = button.innerHTML;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        button.textContent = 'Opening…';
+
+        const restore = () => {
+          button.innerHTML = original;
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+        };
+
+        try {
+          const res = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ pack: button.dataset.pack }),
+          });
+          const body = await res.json().catch(() => ({}));
+
+          if (res.ok && body.url) {
+            // Leaving the page — keep the button held so a second click can't
+            // open a second session on the way out.
+            window.location.href = body.url;
+            return;
+          }
+
+          restore();
+          fail(
+            body.error ||
+              (res.status === 401
+                ? 'Your session has expired. Sign in again, then choose a pack.'
+                : 'The payment desk could not be opened. Please try again.')
+          );
+        } catch {
+          restore();
+          fail('The payment desk could not be reached. Check your connection and try again.');
+        }
+      });
+    }
+
+    // Stripe redirects back before the webhook has necessarily been delivered,
+    // so poll briefly rather than showing a balance that is a few seconds stale.
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('purchased') && !params.has('canceled')) return;
+
+    // Drop the flag so a refresh doesn't replay the notice.
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (!params.has('purchased')) return;
+
+    const creditEls = [...document.querySelectorAll('[data-field="credits"]')];
+    const before = Number(creditEls[0]?.textContent ?? '0');
+    const flash = document.querySelector('[data-buy-flash]');
+    let tries = 0;
+
+    const paint = (data) => {
+      for (const el of creditEls) el.textContent = String(data.credits);
+      const pendingEl = document.querySelector('[data-field="pending"]');
+      if (pendingEl) pendingEl.textContent = String(data.pending);
+      const affordable = document.querySelector('[data-field="pages-affordable"]');
+      if (affordable) affordable.textContent = String(Math.floor(data.credits / 3));
+    };
+
+    const watch = async () => {
+      tries += 1;
+      try {
+        const res = await fetch('/api/jobs/status', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Number(data.credits) !== before) {
+            paint(data);
+            if (flash) flash.classList.add('is-settled');
+            return;
+          }
+        }
+      } catch {
+        // A dropped poll is not worth surfacing; the next tick tries again.
+      }
+      // ~20 seconds of patience, then leave it — a reload will show the truth.
+      if (tries < 10) setTimeout(watch, 2000);
+    };
+
+    setTimeout(watch, 1200);
+  })();
+</script>
+
+<style is:global>
+  .grain-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: var(--tv-grade-grain);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .dash-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--tv-bg); }
+
+  .dash-sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+
+  /* NAV */
+  .dash-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: calc(var(--tv-space-unit) * 3);
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .dash-nav { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .dash-brand {
+    font-family: var(--tv-font-heading); font-weight: 700; font-size: 1.35rem;
+    color: var(--tv-accent-2);
+  }
+  .dash-nav-right { display: flex; align-items: center; gap: calc(var(--tv-space-unit) * 4); }
+  .dash-nav-credits {
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-accent-2); white-space: nowrap;
+    padding: calc(var(--tv-space-unit) * 0.75) calc(var(--tv-space-unit) * 1.5);
+    border: var(--tv-border-width) solid var(--tv-border);
+  }
+  .dash-nav-email {
+    display: none;
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .dash-nav-email { display: inline; } }
+  .dash-signout {
+    background: none; border: none; cursor: pointer;
+    font-family: var(--tv-font-mono); font-weight: 500; font-size: 0.75rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--tv-fg-muted);
+    padding: calc(var(--tv-space-unit) * 1) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .dash-signout:hover { color: var(--tv-accent); border-bottom-color: var(--tv-accent); }
+  .dash-signout:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* MAIN */
+  .dash-main {
+    flex: 1; max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 4)
+             calc(var(--tv-space-unit) * 12);
+  }
+  @media (min-width: 700px) {
+    .dash-main {
+      padding: calc(var(--tv-space-unit) * 8) calc(var(--tv-space-unit) * 6)
+               calc(var(--tv-space-unit) * 16);
+    }
+  }
+
+  .dash-eyebrow {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .dash-header h1 {
+    font-family: var(--tv-font-heading);
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: var(--tv-h1-weight);
+    letter-spacing: var(--tv-h1-tracking);
+    line-height: var(--tv-h1-leading);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .dash-lede { color: var(--tv-fg-muted); max-width: 48ch; }
+  .dash-lede strong { color: var(--tv-fg); font-weight: 600; }
+
+  /* BALANCE — ledger slip */
+  .dash-balance {
+    margin-top: calc(var(--tv-space-unit) * 8);
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-accent);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .dash-balance { padding: calc(var(--tv-space-unit) * 8); } }
+  .dash-balance-figure { display: flex; align-items: baseline; gap: calc(var(--tv-space-unit) * 2); flex-wrap: wrap; }
+  .dash-balance-num {
+    font-family: var(--tv-font-mono); font-size: clamp(3rem, 10vw, 4.5rem);
+    font-weight: 400; line-height: 1; color: var(--tv-accent);
+  }
+  .dash-balance-unit {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .dash-balance-meta {
+    margin-top: calc(var(--tv-space-unit) * 6);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    max-width: 34rem;
+  }
+  .dash-balance-meta > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 4);
+    padding: calc(var(--tv-space-unit) * 2) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .dash-balance-meta dt {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .dash-balance-meta dd { font-family: var(--tv-font-mono); font-size: 0.95rem; text-align: right; }
+
+  .dash-actions {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: calc(var(--tv-space-unit) * 3);
+    margin-top: calc(var(--tv-space-unit) * 6);
+  }
+  @media (min-width: 480px) { .dash-actions { flex-direction: row; align-items: center; gap: calc(var(--tv-space-unit) * 6); } }
+
+  .dash-btn-primary {
+    display: inline-block; font-family: var(--tv-font-heading); font-weight: 600; font-size: 1.05rem;
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 7);
+    background: var(--tv-accent); color: var(--tv-bg); border: none; border-radius: var(--tv-radius); cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .dash-btn-primary:hover { transform: translateY(-2px); box-shadow: var(--tv-shadow-lift); }
+  .dash-btn-primary:focus-visible { outline: 3px solid var(--tv-accent-2); outline-offset: 3px; }
+
+  .dash-btn-secondary {
+    display: inline-block; font-family: var(--tv-font-heading); font-weight: 500; font-size: 1rem;
+    padding: calc(var(--tv-space-unit) * 3) 0;
+    border-bottom: 2px solid var(--tv-accent);
+  }
+  .dash-btn-secondary:hover { color: var(--tv-accent); }
+  .dash-btn-secondary:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* ACQUISITION — uniform credit pack cards */
+  .buy { margin-top: calc(var(--tv-space-unit) * 14); }
+  .buy h2 {
+    font-family: var(--tv-font-heading); font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 700; letter-spacing: -0.01em;
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .buy-lede { color: var(--tv-fg-muted); max-width: 56ch; }
+
+  .buy-error {
+    margin-top: calc(var(--tv-space-unit) * 4);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-alert);
+    background: var(--tv-surface); color: var(--tv-alert);
+    padding: calc(var(--tv-space-unit) * 2) calc(var(--tv-space-unit) * 3);
+  }
+  .buy-error[hidden] { display: none; }
+
+  .buy-list {
+    list-style: none; margin: calc(var(--tv-space-unit) * 7) 0 0; padding: 0;
+    display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 4);
+    align-items: stretch;
+  }
+  @media (min-width: 900px) {
+    .buy-list { grid-template-columns: repeat(3, 1fr); gap: calc(var(--tv-space-unit) * 4); }
+  }
+
+  /* All three cards share identical structure; grid stretch + height:100%
+     gives them equal height. The gold left stripe is the same on every tier. */
+  .buy-slip {
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-accent);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+    display: flex; flex-direction: column;
+    gap: calc(var(--tv-space-unit) * 3);
+    height: 100%;
+  }
+  @media (min-width: 900px) {
+    .buy-slip { padding: calc(var(--tv-space-unit) * 6); }
+  }
+
+  .buy-numeral {
+    display: block;
+    font-family: var(--tv-font-mono); font-size: 0.75rem; font-weight: 500;
+    letter-spacing: 0.15em; color: var(--tv-accent);
+  }
+
+  .buy-slip-head h3 {
+    font-family: var(--tv-font-heading); font-size: 1.3rem; font-weight: 600;
+    line-height: 1.2; margin-top: calc(var(--tv-space-unit) * 1);
+  }
+  .buy-slip-note {
+    color: var(--tv-fg-muted); font-size: 0.9rem;
+    margin-top: calc(var(--tv-space-unit) * 1);
+    /* Reserve space for the longest note (3 lines) so all cards align. */
+    min-height: 4.05em; line-height: 1.5;
+  }
+
+  /* Figures: a vertical stack of horizontal label/value rows.
+     dt and dd sit on the SAME line, label flush left, value flush right. */
+  .buy-figures {
+    display: flex; flex-direction: column;
+    gap: calc(var(--tv-space-unit) * 2);
+    padding-top: calc(var(--tv-space-unit) * 3);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+  }
+  .buy-figures > div {
+    display: flex; align-items: baseline;
+    justify-content: space-between;
+    gap: calc(var(--tv-space-unit) * 2);
+  }
+  .buy-figures dt {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .buy-figures dd {
+    font-family: var(--tv-font-mono); font-size: 1rem;
+    color: var(--tv-fg); text-align: right;
+  }
+
+  /* Terms pinned to the bottom of each card via margin-top:auto, so the
+     Acquire buttons line up across cards regardless of note length. */
+  .buy-terms {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: calc(var(--tv-space-unit) * 2);
+    margin-top: auto;
+    padding-top: calc(var(--tv-space-unit) * 3);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+  }
+  .buy-price {
+    font-family: var(--tv-font-mono); font-size: 2.4rem; line-height: 1; color: var(--tv-accent);
+  }
+  .buy-saving {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-accent);
+    /* Reserve a line so "Base rate" (small tier) keeps the same height as
+       the savings badges on the other two cards. */
+    min-height: 1em; line-height: 1.2;
+  }
+  .buy-saving--none { color: var(--tv-fg-muted); }
+
+  .buy-btn {
+    flex: none; cursor: pointer; background: none;
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--tv-fg);
+    border: var(--tv-border-width) solid var(--tv-fg);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 2) calc(var(--tv-space-unit) * 5);
+    margin-top: calc(var(--tv-space-unit) * 1);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .buy-btn:hover { background: var(--tv-accent); border-color: var(--tv-accent); color: var(--tv-bg); }
+  .buy-btn:focus-visible { outline: 3px solid var(--tv-accent); outline-offset: 3px; }
+  .buy-btn[disabled] { cursor: progress; color: var(--tv-fg-muted); border-color: var(--tv-border); }
+
+  /* FLASH — the notice Stripe sends you back to. */
+  .buy-flash {
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-accent-2);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 4);
+    margin-bottom: calc(var(--tv-space-unit) * 6);
+    max-width: 52ch;
+  }
+  .buy-flash p { font-size: 0.98rem; color: var(--tv-fg-muted); }
+  .buy-flash-title {
+    font-family: var(--tv-font-heading); font-size: 1.2rem; font-weight: 600;
+    color: var(--tv-fg) !important;
+    margin-bottom: calc(var(--tv-space-unit) * 1);
+  }
+  .buy-flash--ok { border-left-color: var(--tv-ok); }
+  .buy-flash--ok.is-settled { animation: dash-arrive 1s ease-out 1; }
+
+  /* JOBS */
+  .dash-jobs { margin-top: calc(var(--tv-space-unit) * 14); }
+  .dash-section-label {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .dash-jobs h2 {
+    font-family: var(--tv-font-heading); font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 700; letter-spacing: -0.01em;
+    margin-bottom: calc(var(--tv-space-unit) * 6);
+  }
+
+  .dash-error {
+    border-left: 3px solid var(--tv-alert); color: var(--tv-alert);
+    background: var(--tv-surface);
+    padding: calc(var(--tv-space-unit) * 2) calc(var(--tv-space-unit) * 3);
+    margin-bottom: calc(var(--tv-space-unit) * 4);
+  }
+
+  .dash-empty {
+    border: var(--tv-border-width) dashed var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 8) calc(var(--tv-space-unit) * 4);
+    text-align: left;
+  }
+  @media (min-width: 700px) { .dash-empty { padding: calc(var(--tv-space-unit) * 10); } }
+  .dash-empty-title {
+    font-family: var(--tv-font-heading); font-size: 1.35rem; font-weight: 600;
+    margin-bottom: calc(var(--tv-space-unit) * 2);
+  }
+  .dash-empty p { color: var(--tv-fg-muted); max-width: 46ch; }
+  .dash-empty .dash-btn-primary { margin-top: calc(var(--tv-space-unit) * 6); }
+
+  .dash-live-note {
+    display: flex; align-items: center; gap: calc(var(--tv-space-unit) * 1.5);
+    font-family: var(--tv-font-mono); font-size: 0.66rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 2);
+  }
+  .dash-live-note[hidden] { display: none; }
+
+  /* STATUS MARKS */
+  .dash-status {
+    display: inline-flex; align-items: center; gap: calc(var(--tv-space-unit) * 1.25);
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.1em;
+    text-transform: uppercase; white-space: nowrap; color: var(--tv-fg-muted);
+  }
+  .dash-status--done { color: var(--tv-ok); }
+  .dash-status--bad { color: var(--tv-alert); }
+  .dash-status--working { color: var(--tv-accent-2); }
+
+  .dash-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none;
+    background: var(--tv-fg-muted);
+  }
+  .dash-dot--working { background: var(--tv-accent); animation: dash-pulse 1.8s ease-in-out infinite; }
+  .dash-dot--done {
+    width: auto; height: auto; border-radius: 0; background: none;
+    color: var(--tv-ok); font-size: 0.85rem; line-height: 1;
+  }
+  .dash-dot--bad {
+    width: 0.55rem; height: 0.55rem; border-radius: 0; background: var(--tv-alert);
+  }
+  @keyframes dash-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.75); }
+  }
+
+  .dash-status-note {
+    display: block; max-width: 28ch;
+    margin-top: calc(var(--tv-space-unit) * 1);
+    font-family: var(--tv-font-body); font-size: 0.82rem; line-height: 1.4;
+    color: var(--tv-alert); white-space: normal;
+  }
+
+  .dash-fresh-flag {
+    display: inline-block; margin-left: calc(var(--tv-space-unit) * 1.5);
+    font-family: var(--tv-font-mono); font-size: 0.6rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-bg); background: var(--tv-ok);
+    padding: 0 calc(var(--tv-space-unit) * 1);
+    vertical-align: 0.15em;
+  }
+  .dash-fresh-flag[hidden] { display: none; }
+
+  .dash-download {
+    display: inline-block;
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-bg); background: var(--tv-accent);
+    padding: calc(var(--tv-space-unit) * 1.25) calc(var(--tv-space-unit) * 2.5);
+    white-space: nowrap; cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dash-download:hover { background: var(--tv-accent-2); }
+  .dash-download:focus-visible { outline: 2px solid var(--tv-accent-2); outline-offset: 3px; }
+  .dash-cell-quiet {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted); white-space: nowrap;
+  }
+  .dash-cell-quiet:hover { color: var(--tv-accent); }
+
+  /* TABLE (desktop) */
+  .dash-table-wrap { border-top: var(--tv-border-width) solid var(--tv-border); }
+  .dash-table { width: 100%; border-collapse: collapse; }
+  .dash-table th {
+    text-align: left;
+    font-family: var(--tv-font-mono); font-weight: 500; font-size: 0.68rem;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--tv-fg-muted);
+    padding: calc(var(--tv-space-unit) * 2.5) calc(var(--tv-space-unit) * 2);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    white-space: nowrap;
+  }
+  .dash-table td {
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 2);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    vertical-align: baseline;
+  }
+  .dash-table tbody tr:hover { background: var(--tv-surface); }
+  .dash-table tbody tr.is-fresh {
+    background: var(--tv-surface);
+    box-shadow: inset calc(var(--tv-border-width) * 3) 0 0 var(--tv-ok);
+    animation: dash-arrive 1.2s ease-out 1;
+  }
+  @keyframes dash-arrive {
+    0% { opacity: 0.45; }
+    100% { opacity: 1; }
+  }
+  .dash-cell-num { font-family: var(--tv-font-mono); font-size: 0.9rem; color: var(--tv-fg-muted); white-space: nowrap; }
+  .dash-cell-file { font-size: 1rem; overflow-wrap: anywhere; }
+  .dash-cell-link { border-bottom: var(--tv-border-width) solid var(--tv-border); }
+  .dash-cell-link:hover { color: var(--tv-accent); border-bottom-color: var(--tv-accent); }
+
+  /* CARDS (phone) — the register becomes one filing slip per job. */
+  @media (max-width: 699px) {
+    .dash-table-wrap { border-top: none; }
+    .dash-table, .dash-table tbody, .dash-table tr, .dash-table td { display: block; width: 100%; }
+    .dash-table thead { display: none; }
+    .dash-table tr {
+      border: var(--tv-border-width) solid var(--tv-border);
+      border-left: calc(var(--tv-border-width) * 3) solid var(--tv-border);
+      border-radius: var(--tv-radius);
+      background: var(--tv-surface);
+      padding: calc(var(--tv-space-unit) * 3);
+      margin-bottom: calc(var(--tv-space-unit) * 3);
+    }
+    .dash-table tbody tr[data-status="complete"] { border-left-color: var(--tv-ok); }
+    .dash-table tbody tr[data-status="failed"],
+    .dash-table tbody tr[data-status="refunded"] { border-left-color: var(--tv-alert); }
+    .dash-table tbody tr.is-fresh { box-shadow: none; border-left-color: var(--tv-ok); }
+    .dash-table td {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: calc(var(--tv-space-unit) * 3);
+      padding: calc(var(--tv-space-unit) * 1.5) 0;
+      border-bottom: none;
+      text-align: right;
+    }
+    .dash-table td::before {
+      content: attr(data-label);
+      font-family: var(--tv-font-mono); font-size: 0.62rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--tv-fg-muted);
+      text-align: left; flex: none;
+    }
+    /* The filename is the card's heading, so it loses its label and spans the width. */
+    .dash-table td[data-label="Source"] {
+      display: block; text-align: left;
+      font-family: var(--tv-font-heading); font-size: 1.1rem; font-weight: 600;
+      padding-bottom: calc(var(--tv-space-unit) * 2);
+      border-bottom: var(--tv-border-width) solid var(--tv-border);
+      margin-bottom: calc(var(--tv-space-unit) * 1.5);
+    }
+    .dash-table td[data-label="Source"]::before { content: none; }
+    .dash-table td[data-label="No."] {
+      justify-content: flex-start;
+      font-size: 0.7rem; letter-spacing: 0.14em;
+    }
+    .dash-table td[data-label="No."]::before { content: "Accession"; }
+    .dash-table td[data-label="Status"] { flex-wrap: wrap; }
+    .dash-table td[data-label="Collect"] {
+      display: block; text-align: left;
+      padding-top: calc(var(--tv-space-unit) * 3);
+    }
+    .dash-table td[data-label="Collect"]::before { content: none; }
+    .dash-download { width: 100%; text-align: center; padding-block: calc(var(--tv-space-unit) * 2); }
+    .dash-status-note { max-width: none; text-align: left; }
+  }
+
+  /* FOOTER */
+  .dash-footer {
+    display: flex; flex-wrap: wrap; gap: calc(var(--tv-space-unit) * 2);
+    justify-content: space-between;
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    font-size: 0.85rem; color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .dash-footer { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .dash-footer a:hover { color: var(--tv-accent); }
+  .dash-footer a:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dash-page *, .dash-page *::before, .dash-page *::after {
+      transition: none !important; animation: none !important;
+    }
+  }
+</style>

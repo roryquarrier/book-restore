@@ -1,0 +1,392 @@
+---
+import Base from '../layouts/Base.astro';
+import UploadDesk from '../components/UploadDesk';
+
+export const prerender = false;
+
+// Middleware guarantees a user on /upload; it redirects to /auth otherwise.
+const { userId, email, profile } = Astro.locals;
+const credits = profile?.credits ?? 0;
+---
+
+<Base title="Upload a Book — Book Bash">
+  <div class="grain-overlay"></div>
+
+  <div class="up-page">
+    <nav class="up-nav">
+      <a href="/" class="up-brand">BookBash</a>
+      <div class="up-nav-right">
+        <span class="up-nav-email">{email}</span>
+        <a href="/dashboard" class="up-nav-back">← Back to Dashboard</a>
+      </div>
+    </nav>
+
+    <main class="up-main">
+      <header class="up-header">
+        <p class="up-eyebrow">Intake Desk · Accession</p>
+        <h1>Deposit a book.</h1>
+        <p class="up-lede">
+          Hand over the scan and it is logged, measured and queued for restoration. You will see
+          the page count and the exact cost before a single credit is spent.
+        </p>
+      </header>
+
+      <div class="up-layout">
+        <section class="up-desk" aria-labelledby="desk-heading">
+          <div class="up-desk-head">
+            <p class="up-desk-label">Form 03 · Deposit of Material</p>
+            <h2 id="desk-heading">Intake</h2>
+          </div>
+          <UploadDesk client:load userId={userId} credits={credits} />
+        </section>
+
+        <aside class="up-terms" aria-label="Terms of deposit">
+          <p class="up-terms-label">Terms of deposit</p>
+          <dl>
+            <div>
+              <dt>Accepted</dt>
+              <dd>PDF only</dd>
+            </div>
+            <div>
+              <dt>Largest volume</dt>
+              <dd>50 MB</dd>
+            </div>
+            <div>
+              <dt>Rate</dt>
+              <dd>3 credits · 1 page</dd>
+            </div>
+            <div>
+              <dt>Your balance</dt>
+              <dd>{credits} credits</dd>
+            </div>
+            <div>
+              <dt>Holdings cleared</dt>
+              <dd>After 7 days</dd>
+            </div>
+          </dl>
+
+          <ol class="up-steps">
+            <li>
+              <span class="up-step-num">01</span>
+              <span>The volume is received and filed under your name.</span>
+            </li>
+            <li>
+              <span class="up-step-num">02</span>
+              <span>Pages are counted and the cost is quoted back to you.</span>
+            </li>
+            <li>
+              <span class="up-step-num">03</span>
+              <span>Restoration runs; credits are held, then committed on success.</span>
+            </li>
+            <li>
+              <span class="up-step-num">04</span>
+              <span>A clean copy is returned for download.</span>
+            </li>
+          </ol>
+
+          <p class="up-terms-fine">
+            Nothing is charged at deposit. If a restoration fails, held credits are returned to
+            your balance in full.
+          </p>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="up-footer">
+      <span>Book Bash — Clean copies of any book.</span>
+      <a href="/dashboard">Back to Dashboard</a>
+    </footer>
+  </div>
+</Base>
+
+<style is:global>
+  .grain-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: var(--tv-grade-grain);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .up-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--tv-bg); }
+
+  /* NAV */
+  .up-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: calc(var(--tv-space-unit) * 3);
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .up-nav { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .up-brand {
+    font-family: var(--tv-font-heading); font-weight: 700; font-size: 1.35rem;
+    color: var(--tv-accent-2);
+  }
+  .up-nav-right { display: flex; align-items: center; gap: calc(var(--tv-space-unit) * 4); }
+  .up-nav-email {
+    display: none;
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .up-nav-email { display: inline; } }
+  .up-nav-back {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 1);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .up-nav-back:hover { color: var(--tv-accent); border-bottom-color: var(--tv-accent); }
+  .up-nav-back:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* MAIN */
+  .up-main {
+    flex: 1; max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 4) calc(var(--tv-space-unit) * 4)
+             calc(var(--tv-space-unit) * 12);
+  }
+  @media (min-width: 700px) {
+    .up-main {
+      padding: calc(var(--tv-space-unit) * 8) calc(var(--tv-space-unit) * 6)
+               calc(var(--tv-space-unit) * 16);
+    }
+  }
+
+  .up-eyebrow {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .up-header h1 {
+    font-family: var(--tv-font-heading);
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: var(--tv-h1-weight);
+    letter-spacing: var(--tv-h1-tracking);
+    line-height: var(--tv-h1-leading);
+    margin-bottom: calc(var(--tv-space-unit) * 3);
+  }
+  .up-lede { color: var(--tv-fg-muted); max-width: 52ch; }
+
+  .up-layout {
+    display: grid; gap: calc(var(--tv-space-unit) * 6);
+    margin-top: calc(var(--tv-space-unit) * 8);
+  }
+  @media (min-width: 900px) {
+    .up-layout { grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 1fr); gap: calc(var(--tv-space-unit) * 8); align-items: start; }
+  }
+
+  /* DESK — the intake counter */
+  .up-desk {
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-top: calc(var(--tv-border-width) * 3) solid var(--tv-accent);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .up-desk { padding: calc(var(--tv-space-unit) * 7); } }
+  .up-desk-head {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: space-between; gap: calc(var(--tv-space-unit) * 2);
+    padding-bottom: calc(var(--tv-space-unit) * 3);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    margin-bottom: calc(var(--tv-space-unit) * 5);
+  }
+  .up-desk-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .up-desk-head h2 {
+    font-family: var(--tv-font-heading); font-size: 1.5rem; font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* SLOT — where the volume is placed */
+  .intake-slot {
+    position: relative;
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: calc(var(--tv-space-unit) * 2);
+    background: var(--tv-bg);
+    border: calc(var(--tv-border-width) * 2) dashed var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  @media (min-width: 700px) { .intake-slot { padding: calc(var(--tv-space-unit) * 9) calc(var(--tv-space-unit) * 7); } }
+  .intake-slot.is-dragging { border-color: var(--tv-accent); border-style: solid; background: var(--tv-surface); }
+  .intake-slot.has-file { border-style: solid; border-color: var(--tv-border); }
+  .intake-slot.is-busy { border-color: var(--tv-accent); }
+
+  /* Folded corner — the docket's dog-ear */
+  .intake-slot-corner {
+    position: absolute; top: 0; right: 0; width: 1.75rem; height: 1.75rem;
+    background: linear-gradient(225deg, var(--tv-surface) 50%, transparent 50%);
+    border-left: var(--tv-border-width) solid var(--tv-border);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+
+  .intake-slot-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+  }
+  .intake-slot-head {
+    font-family: var(--tv-font-heading); font-size: clamp(1.35rem, 4vw, 1.85rem);
+    font-weight: 600; line-height: 1.2;
+  }
+  .intake-slot-note { color: var(--tv-fg-muted); max-width: 34ch; }
+  .intake-slot-fine {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .intake-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  .intake-browse {
+    margin: calc(var(--tv-space-unit) * 2) 0;
+    font-family: var(--tv-font-heading); font-weight: 600; font-size: 1.05rem;
+    padding: calc(var(--tv-space-unit) * 2.5) calc(var(--tv-space-unit) * 6);
+    background: var(--tv-accent); color: var(--tv-bg);
+    border: none; border-radius: var(--tv-radius); cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .intake-browse:hover { transform: translateY(-2px); box-shadow: var(--tv-shadow-lift); }
+  .intake-browse:focus-visible { outline: 3px solid var(--tv-accent-2); outline-offset: 3px; }
+
+  /* DOCKET — the filled-in intake form */
+  .intake-docket { width: 100%; margin-top: calc(var(--tv-space-unit) * 2); }
+  .intake-docket > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 3);
+    padding: calc(var(--tv-space-unit) * 2) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .intake-docket dt {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-fg-muted); white-space: nowrap;
+  }
+  .intake-docket dd {
+    font-family: var(--tv-font-mono); font-size: 0.9rem; text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .intake-docket-file { color: var(--tv-fg); }
+
+  .intake-progress { width: 100%; margin-top: calc(var(--tv-space-unit) * 5); }
+  .intake-progress-track {
+    height: 0.5rem; width: 100%;
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    overflow: hidden;
+  }
+  .intake-progress-fill {
+    height: 100%; background: var(--tv-accent);
+    transition: width 0.25s ease;
+  }
+  .intake-progress-text {
+    margin-top: calc(var(--tv-space-unit) * 2);
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+
+  .intake-slot-actions {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: calc(var(--tv-space-unit) * 4);
+    margin-top: calc(var(--tv-space-unit) * 5);
+  }
+  .intake-submit {
+    font-family: var(--tv-font-heading); font-weight: 600; font-size: 1.05rem;
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 7);
+    background: var(--tv-accent); color: var(--tv-bg);
+    border: none; border-radius: var(--tv-radius); cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .intake-submit:hover { transform: translateY(-2px); box-shadow: var(--tv-shadow-lift); }
+  .intake-submit:focus-visible { outline: 3px solid var(--tv-accent-2); outline-offset: 3px; }
+  .intake-clear {
+    background: none; border: none; cursor: pointer;
+    font-family: var(--tv-font-mono); font-size: 0.72rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 0.5);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .intake-clear:hover { color: var(--tv-accent-2); border-bottom-color: var(--tv-accent-2); }
+  .intake-clear:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  /* ERROR — a returned deposit slip */
+  .intake-error {
+    margin-top: calc(var(--tv-space-unit) * 4);
+    background: var(--tv-bg);
+    border: var(--tv-border-width) solid var(--tv-accent-2);
+    border-left: calc(var(--tv-border-width) * 3) solid var(--tv-accent-2);
+    padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 3);
+    color: var(--tv-fg);
+  }
+  .intake-error-mark {
+    display: block;
+    font-family: var(--tv-font-mono); font-size: 0.66rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+    margin-bottom: calc(var(--tv-space-unit) * 1);
+  }
+
+  .intake-balance {
+    margin-top: calc(var(--tv-space-unit) * 4);
+    font-size: 0.95rem; color: var(--tv-fg-muted);
+  }
+  .intake-balance strong { font-family: var(--tv-font-mono); color: var(--tv-fg); font-weight: 500; }
+
+  /* TERMS SIDEBAR */
+  .up-terms {
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  .up-terms-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 2);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .up-terms dl { margin-top: calc(var(--tv-space-unit) * 2); }
+  .up-terms dl > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 3);
+    padding: calc(var(--tv-space-unit) * 1.5) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .up-terms dt {
+    font-family: var(--tv-font-mono); font-size: 0.66rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+  .up-terms dd { font-family: var(--tv-font-mono); font-size: 0.85rem; text-align: right; }
+
+  .up-steps { list-style: none; margin-top: calc(var(--tv-space-unit) * 5); }
+  .up-steps li {
+    display: flex; gap: calc(var(--tv-space-unit) * 2);
+    padding: calc(var(--tv-space-unit) * 1.5) 0;
+    font-size: 0.95rem; color: var(--tv-fg-muted);
+  }
+  .up-step-num {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.1em;
+    color: var(--tv-accent-2); padding-top: 0.35rem;
+  }
+  .up-terms-fine {
+    margin-top: calc(var(--tv-space-unit) * 4);
+    padding-top: calc(var(--tv-space-unit) * 3);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    font-size: 0.9rem; color: var(--tv-fg-muted);
+  }
+
+  /* FOOTER */
+  .up-footer {
+    display: flex; flex-wrap: wrap; gap: calc(var(--tv-space-unit) * 2);
+    justify-content: space-between;
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    font-size: 0.85rem; color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .up-footer { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .up-footer a:hover { color: var(--tv-accent); }
+  .up-footer a:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .up-page *, .up-page *::before, .up-page *::after {
+      transition: none !important; animation: none !important;
+    }
+  }
+</style>

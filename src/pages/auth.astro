@@ -1,0 +1,279 @@
+---
+import Base from '../layouts/Base.astro';
+import { SignIn, SignUp } from '@clerk/astro/components';
+
+export const prerender = false;
+
+const requested = Astro.url.searchParams.get('mode');
+const isSignUp = requested === 'signup';
+const next = Astro.url.searchParams.get('next') ?? '/dashboard';
+---
+
+<Base title="Sign In — Book Bash">
+  <div class="grain-overlay"></div>
+
+  <div class="auth-page">
+    <nav class="auth-nav">
+      <a href="/" class="auth-brand">BookBash</a>
+      <span class="auth-nav-note">Register of Readers</span>
+    </nav>
+
+    <main class="auth-main">
+      <section class="auth-plate" aria-labelledby="auth-heading">
+        <p class="auth-eyebrow">Entry No. 001 · Access</p>
+        <h1 id="auth-heading">Sign the register.</h1>
+        <p class="auth-lede">
+          Every restoration is filed against a name. Sign in to open your catalogue, or open a
+          new account and take the ten credits that come with it.
+        </p>
+
+        <dl class="auth-terms">
+          <div>
+            <dt>Admission</dt>
+            <dd>10 credits on opening an account</dd>
+          </div>
+          <div>
+            <dt>Rate</dt>
+            <dd>3 credits · 1 page restored</dd>
+          </div>
+          <div>
+            <dt>Holdings</dt>
+            <dd>Files kept 7 days, then cleared</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="auth-card" aria-label="Sign in or create an account">
+        <p class="auth-card-label">Book Bash · Restoration Desk</p>
+        <div class="auth-clerk-wrap">
+            {isSignUp ? <SignUp fallbackRedirectUrl={next} /> : <SignIn fallbackRedirectUrl={next} />}
+        </div>
+        <div class="auth-mode-switch">
+          {isSignUp ? (
+            <p>Already have an account? <a href={`/auth?mode=signin&next=${encodeURIComponent(next)}`}>Sign in</a></p>
+          ) : (
+            <p>New here? <a href={`/auth?mode=signup&next=${encodeURIComponent(next)}`}>Create an account</a></p>
+          )}
+        </div>
+      </section>
+    </main>
+
+    <footer class="auth-footer">
+      <span>Book Bash — Clean copies of any book.</span>
+      <a href="/">Back to the catalogue</a>
+    </footer>
+  </div>
+</Base>
+
+<style is:global>
+  /* GRAIN */
+  .grain-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: var(--tv-grade-grain);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .auth-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--tv-bg);
+  }
+
+  .auth-nav {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 3);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+    max-width: 72rem; width: 100%; margin: 0 auto;
+  }
+  @media (min-width: 700px) { .auth-nav { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .auth-brand {
+    font-family: var(--tv-font-heading); font-weight: 700; font-size: 1.35rem;
+    color: var(--tv-accent-2);
+  }
+  .auth-nav-note {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+  }
+
+  .auth-main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: calc(var(--tv-space-unit) * 10);
+    align-items: start;
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4)
+             calc(var(--tv-space-unit) * 12);
+  }
+  @media (min-width: 900px) {
+    .auth-main {
+      grid-template-columns: 5fr 6fr;
+      gap: calc(var(--tv-space-unit) * 14);
+      padding: calc(var(--tv-space-unit) * 10) calc(var(--tv-space-unit) * 6)
+               calc(var(--tv-space-unit) * 16);
+      align-items: center;
+    }
+  }
+
+  .auth-eyebrow {
+    font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--tv-accent-2);
+    margin-bottom: calc(var(--tv-space-unit) * 4);
+  }
+  .auth-plate h1 {
+    font-family: var(--tv-font-heading);
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    font-weight: var(--tv-h1-weight);
+    letter-spacing: var(--tv-h1-tracking);
+    line-height: var(--tv-h1-leading);
+    margin-bottom: calc(var(--tv-space-unit) * 4);
+    max-width: 12ch;
+  }
+  .auth-lede {
+    color: var(--tv-fg-muted); max-width: 40ch;
+    margin-bottom: calc(var(--tv-space-unit) * 8);
+  }
+  .auth-terms { border-top: var(--tv-border-width) solid var(--tv-border); max-width: 34rem; }
+  .auth-terms > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: calc(var(--tv-space-unit) * 4);
+    padding: calc(var(--tv-space-unit) * 2.5) 0;
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+  }
+  .auth-terms dt {
+    font-family: var(--tv-font-mono); font-size: 0.7rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--tv-fg-muted); white-space: nowrap;
+  }
+  .auth-terms dd { font-size: 0.95rem; text-align: right; }
+
+  .auth-card {
+    background: var(--tv-surface);
+    border: var(--tv-border-width) solid var(--tv-border);
+    border-radius: var(--tv-radius);
+    padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 4);
+  }
+  @media (min-width: 700px) { .auth-card { padding: calc(var(--tv-space-unit) * 8); } }
+  .auth-card-label {
+    font-family: var(--tv-font-mono); font-size: 0.68rem; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--tv-fg-muted);
+    padding-bottom: calc(var(--tv-space-unit) * 3);
+    border-bottom: var(--tv-border-width) solid var(--tv-border);
+    margin-bottom: calc(var(--tv-space-unit) * 5);
+  }
+
+  .auth-clerk-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 0 calc(var(--tv-space-unit) * 2);
+  }
+  /* Clerk renders in a shadow DOM — target the host element */
+  .auth-clerk-wrap clerk-sign-in,
+  .auth-clerk-wrap clerk-sign-up {
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    display: block;
+  }
+  .auth-clerk-wrap > * {
+    margin: 0 auto !important;
+  }
+
+  /* CLERK THEME — Clerk renders .cl-* divs (no shadow DOM).
+     Base (light) variables set on the host wrapper. */
+  .auth-clerk-wrap {
+    --clerk-colors-bg: var(--tv-surface);
+    --clerk-colors-bgHover: var(--tv-bg);
+    --clerk-colors-text: var(--tv-fg);
+    --clerk-colors-textSecondary: var(--tv-fg-muted);
+    --clerk-colors-textTertiary: var(--tv-fg-muted);
+    --clerk-colors-input: var(--tv-bg);
+    --clerk-colors-inputText: var(--tv-fg);
+    --clerk-colors-border: var(--tv-border);
+    --clerk-colors-accent: var(--tv-accent);
+    --clerk-colors-accentText: var(--tv-bg);
+  }
+
+  /* DARK MODE — override Clerk's internal text/input/button colors directly. */
+  :root[data-theme="dark"] .cl-card,
+  :root[data-theme="dark"] .cl-card * {
+    color: var(--tv-fg) !important;
+  }
+  :root[data-theme="dark"] .cl-card .cl-headerTitle,
+  :root[data-theme="dark"] .cl-card .cl-headerSubtitle,
+  :root[data-theme="dark"] .cl-card .cl-formFieldLabel,
+  :root[data-theme="dark"] .cl-card .cl-socialButtonsBlockButton,
+  :root[data-theme="dark"] .cl-card .cl-formHeaderTitle {
+    color: var(--tv-fg) !important;
+  }
+  :root[data-theme="dark"] .cl-card .cl-formFieldInfoText,
+  :root[data-theme="dark"] .cl-card .cl-footerActionLink,
+  :root[data-theme="dark"] .cl-card .cl-formFieldSuccessText,
+  :root[data-theme="dark"] .cl-card .cl-socialButtonsBlockButtonSubtitle {
+    color: var(--tv-fg-muted) !important;
+  }
+  /* Inputs — dark background with light text */
+  :root[data-theme="dark"] .cl-card input,
+  :root[data-theme="dark"] .cl-card .cl-formFieldInput {
+    background-color: var(--tv-bg) !important;
+    color: var(--tv-fg) !important;
+    border-color: var(--tv-border) !important;
+  }
+  :root[data-theme="dark"] .cl-card input::placeholder {
+    color: var(--tv-fg-muted) !important;
+  }
+  /* Primary button — gold accent */
+  :root[data-theme="dark"] .cl-card .cl-formButtonPrimary {
+    background-color: var(--tv-accent) !important;
+    color: var(--tv-bg) !important;
+  }
+  :root[data-theme="dark"] .cl-card .cl-formButtonPrimary:hover {
+    background-color: var(--tv-accent) !important;
+    opacity: 0.85;
+  }
+  /* Social/OAuth buttons — use surface not white */
+  :root[data-theme="dark"] .cl-card .cl-socialButtonsBlockButton,
+  :root[data-theme="dark"] .cl-card .cl-alternativeMethodsBlockButton {
+    background-color: var(--tv-bg) !important;
+    border-color: var(--tv-border) !important;
+    color: var(--tv-fg) !important;
+  }
+  /* Divider line */
+  :root[data-theme="dark"] .cl-card .cl-dividerLine {
+    background-color: var(--tv-border) !important;
+  }
+  /* Links */
+  :root[data-theme="dark"] .cl-card a {
+    color: var(--tv-accent) !important;
+  }
+
+  .auth-mode-switch {
+    margin-top: calc(var(--tv-space-unit) * 4);
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--tv-fg-muted);
+  }
+  .auth-mode-switch a {
+    color: var(--tv-accent-2);
+    border-bottom: 1px solid var(--tv-accent-2);
+  }
+
+  .auth-footer {
+    display: flex; flex-wrap: wrap; gap: calc(var(--tv-space-unit) * 2);
+    justify-content: space-between;
+    max-width: 72rem; width: 100%; margin: 0 auto;
+    padding: calc(var(--tv-space-unit) * 6) calc(var(--tv-space-unit) * 4);
+    border-top: var(--tv-border-width) solid var(--tv-border);
+    font-size: 0.85rem; color: var(--tv-fg-muted);
+  }
+  @media (min-width: 700px) { .auth-footer { padding-inline: calc(var(--tv-space-unit) * 6); } }
+  .auth-footer a:hover { color: var(--tv-accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-page *, .auth-page *::before, .auth-page *::after {
+      transition: none !important; animation: none !important;
+    }
+  }
+</style>

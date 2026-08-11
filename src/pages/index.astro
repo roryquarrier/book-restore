@@ -1,0 +1,364 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base>
+<!-- GRAIN OVERLAY -->
+<div class="grain-overlay"></div>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="/" class="nav-brand">BookBash</a>
+  <div class="nav-links">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/auth">Sign In</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">The Restoration Catalogue</p>
+      <h1>Clean copies of any book.</h1>
+      <p class="hero-sub">For busy teachers — sign up, add credits, drop the book in, get a clean copy out.</p>
+      <div class="hero-ctas">
+        <a href="/auth" class="btn-primary">Get Clean Copy</a>
+        <a href="#how" class="btn-secondary">See How It Works</a>
+      </div>
+    </div>
+    <div class="hero-image-wrap">
+      <button class="plate-toggle" type="button" aria-pressed="false" aria-label="Toggle between degraded and restored">
+        <span class="plate-frame">
+          <span class="plate-window">
+            <img src="/images/hero.png" alt="Peter Rabbit book cover — interactive before/after restoration demo" />
+          </span>
+        </span>
+        <span class="restore-status" aria-hidden="true">
+          <span class="label-degraded">Hover or tap to restore</span>
+          <span class="label-restored">✓ Restored</span>
+        </span>
+      </button>
+      <p class="caption">Source: photocopy, c. 1995 — Restored: 2026</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="steps" id="how">
+  <div class="steps-inner">
+    <p class="section-label">II · The Method</p>
+    <h2>Three steps, one clean copy.</h2>
+    <p class="steps-intro">Every restoration follows the same procedure. You bring the worn original; we return a copy fit for the classroom.</p>
+    <div class="step-list">
+      <div class="step">
+        <span class="step-num">01</span>
+        <div>
+          <h3>Upload</h3>
+          <p>Drop in a photo, a scan, or a PDF — up to 80 pages at once. The page arrives as it is: smudged, crooked, faded.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <div>
+          <h3>We Restore</h3>
+          <p>Book Bash reads the page, lifts the grey background, rebuilds the letterforms, and sharpens every line. 20–90 seconds per page.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <div>
+          <h3>Download</h3>
+          <p>Get your clean copy as a print-ready PDF. Hand it out knowing every child can read every word.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BEFORE / AFTER -->
+<section class="compare">
+  <p class="section-label">III–IV · Condition Report</p>
+  <h2>The same page, twice.</h2>
+  <p class="compare-intro">Left: a fifth-generation photocopy from the staffroom cabinet. Right: the page Book Bash returns.</p>
+  <div class="compare-grid">
+    <figure class="fig-before">
+      <span class="fig-tag">Fig. A — Before</span>
+      <div class="plate-frame">
+        <div class="plate-window">
+          <img src="/images/before.png" alt="Degraded Peter Rabbit grammar exercise photocopy" />
+        </div>
+      </div>
+      <figcaption>Source: classroom photocopy, fifth generation — 2026</figcaption>
+    </figure>
+    <figure class="fig-after">
+      <span class="fig-tag">Fig. B — After</span>
+      <div class="plate-frame">
+        <div class="plate-window">
+          <img src="/images/after.png" alt="Restored Peter Rabbit grammar exercise page" />
+        </div>
+      </div>
+      <figcaption>Source: Book Bash restoration — 2026</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- VALUE PROPS -->
+<section class="values">
+  <div class="values-inner">
+    <p class="section-label">V · Why It Matters</p>
+    <div class="claims-grid">
+      <article class="claim">
+        <span class="claim-num">01</span>
+        <h3>Legible again, for every child in the room.</h3>
+        <p>Grey pages and broken letters slow young readers down. A restored copy gives a class of thirty the same crisp page the first owner held.</p>
+      </article>
+      <article class="claim">
+        <span class="claim-num">02</span>
+        <h3>Nothing is lost.</h3>
+        <p>Your layout, your page numbers, your exercise structure — nothing moves. We clean what's there; we don't redesign your lesson.</p>
+      </article>
+      <article class="claim">
+        <span class="claim-num">03</span>
+        <h3>Minutes, not evenings.</h3>
+        <p>What used to mean an hour in Photoshop or a trip to the print shop now takes less time than making coffee.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING + CTA (combined section, properly balanced) -->
+<section class="pricing-cta" id="start">
+  <div class="pricing-cta-inner">
+    <p class="section-label">Terms of Acquisition</p>
+    <p class="pricing-line"><strong>$5</strong>Credit-based. Starts at $5 for 50 pages.</p>
+    <h2 class="pricing-cta-heading">Your library, returned to first-edition clarity.</h2>
+    <a href="/auth" class="btn-primary">Get Clean Copy</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <span>Book Bash — Clean copies of any book.</span>
+  <a href="#how">Back to top</a>
+</footer>
+</Base>
+
+<style>
+/* GRAIN */
+.grain-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  opacity: var(--tv-grade-grain);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+/* NAV */
+.nav {
+  display: flex; justify-content: space-between; align-items: baseline;
+  flex-wrap: wrap; gap: calc(var(--tv-space-unit) * 2);
+  padding: calc(var(--tv-space-unit) * 4);
+  max-width: 72rem; margin: 0 auto;
+}
+@media (min-width: 700px) { .nav { padding: calc(var(--tv-space-unit) * 5) calc(var(--tv-space-unit) * 6); } }
+.nav-brand {
+  font-family: var(--tv-font-heading); font-weight: 700; font-size: 1.35rem;
+  color: var(--tv-accent-2);
+}
+.nav-links { display: flex; gap: calc(var(--tv-space-unit) * 5); }
+.nav-links a {
+  font-family: var(--tv-font-mono); font-weight: 500; font-size: 0.8rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--tv-fg-muted);
+  transition: color 0.2s ease;
+}
+.nav-links a:hover { color: var(--tv-accent); }
+.nav-links a:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+/* HERO */
+.hero { padding: calc(var(--tv-space-unit) * 10) calc(var(--tv-space-unit) * 4); max-width: 72rem; margin: 0 auto; }
+@media (min-width: 700px) { .hero { padding-inline: calc(var(--tv-space-unit) * 6); } }
+
+
+.hero-grid { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 10); align-items: center; }
+@media (min-width: 900px) {
+  .hero-grid { grid-template-columns: 7fr 5fr; gap: calc(var(--tv-space-unit) * 10); }
+}
+
+/* Text column: hold a comfortable measure and sit centred in its track */
+.hero-copy { max-width: 34rem; }
+@media (min-width: 900px) {
+  .hero-copy { margin-inline: auto; padding-inline: calc(var(--tv-space-unit) * 2); }
+}
+
+.eyebrow {
+  font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--tv-accent-2); margin-bottom: calc(var(--tv-space-unit) * 4);
+}
+.hero h1 {
+  font-family: var(--tv-font-heading); font-size: var(--tv-h1-size);
+  font-weight: var(--tv-h1-weight); letter-spacing: var(--tv-h1-tracking);
+  line-height: var(--tv-h1-leading); margin-bottom: calc(var(--tv-space-unit) * 5); max-width: 18ch;
+}
+.hero-sub {
+  font-size: 1.2rem; line-height: 1.6; color: var(--tv-fg-muted);
+  margin-bottom: calc(var(--tv-space-unit) * 6); max-width: 38ch;
+}
+.hero-ctas { display: flex; flex-direction: column; gap: calc(var(--tv-space-unit) * 3); }
+@media (min-width: 480px) { .hero-ctas { flex-direction: row; align-items: center; } }
+
+.btn-primary {
+  display: inline-block; font-family: var(--tv-font-heading); font-weight: 600; font-size: 1.05rem;
+  padding: calc(var(--tv-space-unit) * 3) calc(var(--tv-space-unit) * 7);
+  background: var(--tv-accent); color: var(--tv-bg); border: none; border-radius: var(--tv-radius); cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: var(--tv-shadow-lift); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:focus-visible { outline: 3px solid var(--tv-accent-2); outline-offset: 3px; }
+
+.btn-secondary {
+  display: inline-block; font-family: var(--tv-font-heading); font-weight: 500; font-size: 1.05rem;
+  padding: calc(var(--tv-space-unit) * 3) 0; border-bottom: 2px solid var(--tv-accent);
+}
+.btn-secondary:hover { color: var(--tv-accent); }
+.btn-secondary:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+
+.hero-image-wrap { text-align: center; }
+.plate-toggle {
+  background: none; border: none; padding: 0; cursor: pointer; display: block;
+  max-width: min(38vh, 27rem); width: 100%; margin: 0 auto;
+}
+.plate-frame {
+  display: block; border: var(--tv-border-width) solid var(--tv-border);
+  padding: calc(var(--tv-space-unit) * 3); background: var(--tv-surface);
+}
+.plate-window { display: block; overflow: hidden; position: relative; }
+.plate-window img {
+  width: 100%; height: auto; object-fit: contain; display: block;
+  filter: blur(1.6px) contrast(0.78) brightness(0.93) saturate(0.55) sepia(0.45);
+  transform: skewX(-0.5deg);
+  transition: filter 0.6s ease-in-out, transform 0.6s ease-in-out;
+  will-change: filter;
+}
+.plate-toggle[aria-pressed="true"] .plate-window img {
+  filter: var(--tv-hero-filter);
+  transform: skewX(0);
+}
+@media (hover: hover) {
+  .plate-toggle:hover .plate-window img {
+    filter: var(--tv-hero-filter);
+    transform: skewX(0);
+  }
+}
+.restore-status { display: block; text-align: center; margin-top: calc(var(--tv-space-unit) * 2); }
+.restore-status .label-degraded { display: inline; }
+.restore-status .label-restored { display: none; color: var(--tv-accent-2); }
+.plate-toggle[aria-pressed="true"] .restore-status .label-degraded { display: none; }
+.plate-toggle[aria-pressed="true"] .restore-status .label-restored { display: inline; }
+@media (hover: hover) {
+  .plate-toggle:hover .restore-status .label-degraded { display: none; }
+  .plate-toggle:hover .restore-status .label-restored { display: inline; }
+}
+.caption {
+  font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+  color: var(--tv-fg-muted); text-align: center; margin-top: calc(var(--tv-space-unit) * 2);
+}
+
+/* SECTIONS */
+.section-label {
+  font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--tv-fg-muted); margin-bottom: calc(var(--tv-space-unit) * 3);
+}
+
+/* HOW IT WORKS */
+.steps { padding: calc(var(--tv-space-unit) * 16) calc(var(--tv-space-unit) * 4); background: var(--tv-surface); border-top: var(--tv-border-width) solid var(--tv-border); }
+.steps-inner { max-width: 72rem; margin: 0 auto; }
+.steps h2 { font-family: var(--tv-font-heading); font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; margin-bottom: calc(var(--tv-space-unit) * 4); }
+.steps-intro { color: var(--tv-fg-muted); max-width: 42ch; margin: 0 0 calc(var(--tv-space-unit) * 10); }
+.step-list { }
+.step { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 4); padding: calc(var(--tv-space-unit) * 6) 0; border-bottom: var(--tv-border-width) solid var(--tv-border); }
+.step:last-child { border-bottom: none; }
+@media (min-width: 700px) { .step { grid-template-columns: auto 1fr; gap: calc(var(--tv-space-unit) * 8); align-items: start; } }
+.step-num { font-family: var(--tv-font-mono); font-size: 2.5rem; font-weight: 300; color: var(--tv-accent); line-height: 1; }
+.step h3 { font-family: var(--tv-font-heading); font-size: 1.4rem; font-weight: 600; margin-bottom: calc(var(--tv-space-unit) * 2); }
+.step p { color: var(--tv-fg-muted); max-width: 42ch; }
+
+/* BEFORE / AFTER */
+.compare { padding: calc(var(--tv-space-unit) * 16) calc(var(--tv-space-unit) * 4); max-width: 72rem; margin: 0 auto; }
+.compare h2 { font-family: var(--tv-font-heading); font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; margin-bottom: calc(var(--tv-space-unit) * 3); }
+.compare-intro { color: var(--tv-fg-muted); max-width: 40ch; margin-bottom: calc(var(--tv-space-unit) * 10); }
+.compare-grid { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 8); }
+@media (min-width: 700px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
+.compare-grid .plate-frame { border: var(--tv-border-width) solid var(--tv-border); padding: calc(var(--tv-space-unit) * 3); background: var(--tv-surface); }
+.compare-grid .plate-window { display: block; overflow: hidden; }
+.compare-grid .plate-window img { width: 100%; height: auto; object-fit: contain; display: block; }
+figcaption { font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--tv-fg-muted); margin-top: calc(var(--tv-space-unit) * 2); }
+.fig-tag { display: block; text-align: center; font-family: var(--tv-font-heading); font-weight: 600; font-size: 1rem; margin-bottom: calc(var(--tv-space-unit) * 2); font-variant-caps: small-caps; letter-spacing: 0.15em; }
+.fig-before .fig-tag { color: var(--tv-fg-muted); }
+.fig-after .fig-tag { color: var(--tv-accent-2); }
+
+/* VALUE PROPS — staggered */
+.values { padding: calc(var(--tv-space-unit) * 16) calc(var(--tv-space-unit) * 4); background: var(--tv-surface); border-top: var(--tv-border-width) solid var(--tv-border); border-bottom: var(--tv-border-width) solid var(--tv-border); }
+.values-inner { max-width: 72rem; margin: 0 auto; }
+.values .section-label { margin-bottom: calc(var(--tv-space-unit) * 8); }
+.claims-grid { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 6); }
+@media (min-width: 700px) { .claims-grid { grid-template-columns: repeat(3, 1fr); gap: calc(var(--tv-space-unit) * 5); } }
+.claim { border-top: calc(var(--tv-border-width) * 3) solid var(--tv-accent); padding: calc(var(--tv-space-unit) * 4) 0 0; }
+.claim-num { display: block; font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.15em; color: var(--tv-accent); margin-bottom: calc(var(--tv-space-unit) * 3); }
+.claim h3 { font-family: var(--tv-font-heading); font-size: clamp(1.15rem, 2vw, 1.5rem); font-weight: 600; margin-bottom: calc(var(--tv-space-unit) * 3); }
+.claim p { color: var(--tv-fg-muted); font-size: 0.95rem; }
+
+
+.pricing-cta {
+  padding: calc(var(--tv-space-unit) * 16) calc(var(--tv-space-unit) * 4);
+  text-align: center;
+}
+.pricing-cta-inner {
+  max-width: 42rem; margin: 0 auto;
+}
+.pricing-cta .section-label {
+  margin-bottom: calc(var(--tv-space-unit) * 4);
+}
+.pricing-line {
+  font-family: var(--tv-font-heading); font-size: 1.15rem; font-weight: 500; color: var(--tv-fg-muted);
+  display: flex; align-items: center; justify-content: center; gap: calc(var(--tv-space-unit) * 3);
+  margin-bottom: calc(var(--tv-space-unit) * 8);
+}
+.pricing-line strong {
+  font-size: 2.5rem; font-weight: 700; color: var(--tv-accent); display: inline-block;
+}
+.pricing-cta-heading {
+  font-family: var(--tv-font-heading); font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700;
+  letter-spacing: -0.01em; margin-bottom: calc(var(--tv-space-unit) * 6); max-width: 22ch;
+  margin-left: auto; margin-right: auto; color: var(--tv-fg);
+}
+
+
+.footer {
+  padding: calc(var(--tv-space-unit) * 8) calc(var(--tv-space-unit) * 4);
+  display: flex; justify-content: space-between;
+  max-width: 72rem; margin: 0 auto;
+  border-top: var(--tv-border-width) solid var(--tv-border);
+  font-size: 0.85rem; color: var(--tv-fg-muted);
+  background: var(--tv-bg);
+}
+.footer a { color: var(--tv-fg-muted); }
+.footer a:hover { color: var(--tv-accent); }
+.footer a:focus-visible { outline: 2px solid var(--tv-accent); outline-offset: 4px; }
+
+/* REDUCED MOTION */
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* PLATE TOGGLE JS */
+@media (hover: none) { .plate-toggle { cursor: pointer; } }
+</style>
+
+<script>
+// Tap-to-toggle on touch devices
+document.querySelectorAll('.plate-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pressed = btn.getAttribute('aria-pressed') === 'true';
+    btn.setAttribute('aria-pressed', String(!pressed));
+  });
+});
+</script>

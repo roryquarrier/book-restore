@@ -1,0 +1,62 @@
+You are running Station 7 (Validate + Smoke) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/
+STACK: Astro 7 + React 19 + Tailwind 4 + Supabase + Python worker
+
+The app has Stations 1-5 complete:
+- Landing page, auth (email/password), dashboard, upload, job detail, download endpoint
+- Worker: ~/book-bash/worker/worker.py (polls Supabase, calls restore.py)
+- DB: profiles, jobs, pages, credit_transactions on Supabase project ruldtseddrklbviloule
+
+YOUR TASKS:
+
+1. BUILD VERIFICATION
+   - Run `cd ~/book-bash && npx astro build` — verify it passes
+   - Run `cd ~/book-bash && npx astro check` (install typescript + @astrojs/check first if needed)
+   - Fix any TypeScript errors you find
+
+2. WORKER SYNTAX CHECK
+   - Run `cd ~/book-bash && source ~/book-restorer/.venv/bin/activate && python -m py_compile worker/worker.py`
+   - Fix any syntax errors
+
+3. AUTH FLOW TEST
+   - Start the server: `cd ~/book-bash && node dist/server/entry.mjs` (background)
+   - Test unauthenticated access:
+     * GET / → should be 200 (public landing)
+     * GET /dashboard → should be 302 redirect to /auth
+     * GET /upload → should be 302 redirect to /auth
+     * GET /jobs/anything → should be 302 redirect to /auth
+   - Test the signup flow via curl (POST to Supabase auth endpoint):
+     * Create a test user: curl the Supabase REST auth signup endpoint with email + password
+     * Verify the profile was auto-created with 10 credits (query the DB)
+   - Clean up: delete the test user afterward
+
+4. DB INTEGRITY CHECK
+   - Verify all 4 tables exist and have correct columns
+   - Verify the 3 credit functions work (hold_credits, commit_credits, refund_credits) by calling them with test data
+   - Verify the signup trigger fires (creates profile + credit_transactions row)
+   - Verify RLS policies (anon can't read other users' data)
+   - Clean up all test data afterward
+
+5. UPLOAD VALIDATION CHECK
+   - Verify the upload endpoint rejects: non-PDF files, files > 50MB, unauthenticated uploads
+   - Don't actually upload a real PDF (that would trigger the worker and cost OpenAI credits)
+
+6. WORKER READINESS CHECK
+   - Verify worker/start.sh sources both .env files correctly
+   - Verify the worker can connect to Supabase (read-only test: query jobs table count)
+   - Verify restore.py is callable: `python ~/book-restorer/restore.py --help`
+   - Do NOT actually run the worker (it would poll forever)
+
+7. FIX ANY ISSUES FOUND
+   - Fix bugs directly in the source files
+   - Re-run the build after fixes
+
+8. REPORT
+   - List everything that passed
+   - List everything that failed and was fixed
+   - List anything that needs human attention
+
+Use the Supabase service role key from ~/book-bash/.env for DB queries.
+Use pgcli or the Supabase REST API for database tests.
+Source ~/book-bash/.env for credentials.

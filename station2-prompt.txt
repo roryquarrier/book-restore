@@ -1,0 +1,55 @@
+You are building Station 2 (Auth + Credits) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/
+STACK: Astro 7 + React 19 + Tailwind 4 + Supabase (already scaffolded, DB migrated)
+
+The project already has:
+- Astro project scaffolded with React + Tailwind
+- src/lib/supabase.ts — browser client using PUBLIC_SUPABASE_URL + PUBLIC_SUPABASE_ANON_KEY from .env
+- src/layouts/Base.astro — base layout with fonts (Playfair Display, EB Garamond, IBM Plex Mono)
+- src/pages/index.astro — landing page (v2 Archival Museum design, DO NOT MODIFY)
+- src/styles/global.css — Tailwind import + --tv-* CSS custom properties (navy/gold/cream palette)
+- supabase/migrations/001_initial_schema.sql — already applied. Has: profiles table (id, email, credits, pending_credits), credit_transactions table, auto-create trigger on signup (gives 10 free credits), RLS policies
+
+YOUR TASKS:
+
+1. CREATE src/lib/supabase-server.ts
+   - Server-side Supabase client using @supabase/ssr createServerClient
+   - For use in Astro server-side endpoints and middleware
+
+2. CREATE src/middleware.ts
+   - Astro middleware that checks auth state
+   - Protects /dashboard route (redirects to /auth if not logged in)
+   - Passes user + profile data to locals
+
+3. CREATE src/pages/auth.astro
+   - Sign in / sign up page (email + password, no OAuth yet)
+   - Uses the Archival Museum design (navy/gold/cream, serif type, --tv-* tokens)
+   - Two modes: "Sign In" and "Create Account" toggle
+   - On signup: Supabase creates the user, the DB trigger auto-creates their profile with 10 credits
+   - On success: redirect to /dashboard
+   - Error handling: show inline errors for wrong password, email already taken, etc.
+   - Include a "Continue as guest" link back to /
+   - Use React island component for the form (client-side interactivity)
+
+4. CREATE src/pages/dashboard.astro
+   - Protected page (middleware redirects to /auth if not logged in)
+   - Shows: welcome message with email, credit balance (from profiles table), pending credits
+   - "Upload a Book" button (links to /upload — doesn't exist yet, just link to it)
+   - "Sign Out" button
+   - Job history table (query jobs table for this user — will be empty for now but build the UI)
+   - Use the Archival Museum design tokens (--tv-* CSS variables)
+
+5. CREATE src/pages/api/signout.ts
+   - Astro API endpoint that signs the user out and redirects to /
+
+DESIGN CONSTRAINTS:
+- ALL colors must use --tv-* CSS custom properties defined in global.css. No hardcoded hex.
+- Font families: Playfair Display for headings, EB Garamond for body, IBM Plex Mono for labels/data
+- No purple gradients, no centered hero trios, no 3-column grids
+- The auth page should feel like a museum sign-in ledger, not a generic SaaS form
+- Mobile-first responsive
+
+DO NOT MODIFY: src/pages/index.astro, src/styles/global.css, src/layouts/Base.astro
+
+Read the existing files first before writing anything.

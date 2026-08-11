@@ -1,0 +1,65 @@
+You are building Station 6 (Stripe Payments) for the Book Bash web app.
+
+PROJECT: /home/hal/book-bash/
+STACK: Astro 7 + React 19 + Tailwind 4 + Supabase SSR (@astrojs/node adapter)
+
+The project already has (Stations 1-5, 7 complete):
+- Landing page, auth, dashboard, upload, job detail, download endpoint — all working
+- DB: profiles (credits, pending_credits), credit_transactions, jobs, pages
+- credit_transactions.reason CHECK constraint includes: 'signup_bonus', 'stripe_purchase', 'regen_hold', 'regen_commit', 'regen_refund'
+- Worker processing jobs with credit hold/commit/refund
+- Stripe secret key already in .env as STRIPE_SECRET_KEY
+
+CREDIT PACKS (from the plan):
+- $5 = 50 credits ($0.10/credit)
+- $10 = 120 credits ($0.083/credit)
+- $20 = 260 credits ($0.077/credit)
+- 10 free credits on signup (already working)
+
+YOUR TASKS:
+
+1. npm install stripe (the Node.js SDK)
+
+2. CREATE src/lib/stripe.ts
+   - Initialize Stripe client with the secret key from process.env
+   - Export the credit pack definitions (price, credits, label)
+
+3. CREATE src/pages/api/checkout.ts
+   - POST endpoint that creates a Stripe Checkout Session
+   - Accepts a "pack" parameter ("small", "medium", "large")
+   - Creates a Checkout Session with:
+     * The correct amount ($5/$10/$20 → 500/1000/2000 cents)
+     * Product name and credit amount in the line item
+     * success_url: /dashboard?purchased=1
+     * cancel_url: /dashboard?canceled=1
+   - Generates an idempotency_key from user_id + pack + timestamp
+   - Returns JSON { url: checkout_session.url }
+
+4. CREATE src/pages/api/stripe-webhook.ts
+   - Receives Stripe webhook events
+   - Verifies the Stripe signature (you'll need to construct an endpoint in the Stripe dashboard for the webhook secret — for now use process.env.STRIPE_WEBHOOK_SECRET which is empty in .env, and note it needs to be filled)
+   - On checkout.session.completed:
+     * Extract the user_id from metadata or client_reference_id
+     * Add credits to their profile
+     * Insert a credit_transactions row with reason='stripe_purchase', the idempotency_key (prevents double-credit on duplicate webhooks)
+   - Returns 200
+
+5. ENHANCE src/pages/dashboard.astro
+   - Add a "Buy Credits" section below the credit balance
+   - Three buttons/cards for the credit packs ($5/50, $10/120, $20/260)
+   - Clicking a pack calls POST /api/checkout with the pack ID
+   - On success: redirect to the Stripe Checkout URL
+   - On return (success_url): show a "Credits added!" message
+   - Use the Archival Museum design (--tv-* tokens, no purple gradients)
+
+6. Add STRIPE_WEBHOOK_SECRET= to .env (empty for now)
+
+DESIGN CONSTRAINTS:
+- ALL colors via --tv-* CSS custom properties
+- Fonts: Playfair Display, EB Garamond, IBM Plex Mono
+- The credit pack cards should look like museum "Terms of Acquisition" — not generic SaaS pricing tiers
+- No 3-column equal grid — stagger or break the layout
+- Mobile-first responsive
+
+DO NOT MODIFY: src/pages/index.astro, src/styles/global.css, src/middleware.ts
+Read dashboard.astro first before enhancing it.

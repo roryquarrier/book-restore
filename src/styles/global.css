@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* ============================================
+   BOOK BASH · v2 Archival Museum
+   Light + Dark mode tokens
+   ============================================ */
+
+:root {
+  /* Typography */
+  --tv-font-heading: "Playfair Display", serif;
+  --tv-font-body: "EB Garamond", serif;
+  --tv-font-mono: "IBM Plex Mono", monospace;
+
+  --tv-h1-size: clamp(2.8rem, 7vw, 6rem);
+  --tv-h1-weight: 700;
+  --tv-h1-tracking: -0.02em;
+  --tv-h1-leading: 1.05;
+  --tv-body-size: 1.125rem;
+  --tv-body-leading: 1.7;
+
+  --tv-measure: 38rem;
+
+  /* Colors — LIGHT: warm cream paper, navy ink, antique gold */
+  --tv-accent: oklch(0.72 0.12 85);       /* antique gold */
+  --tv-accent-2: oklch(0.55 0.06 50);     /* warm bronze */
+  --tv-bg: oklch(0.96 0.008 60);          /* warm cream paper */
+  --tv-surface: oklch(0.93 0.006 55);     /* slightly darker paper */
+  --tv-fg: oklch(0.22 0.02 260);          /* deep navy ink */
+  --tv-fg-muted: oklch(0.48 0.015 260);   /* muted navy grey */
+  --tv-border: oklch(0.82 0.01 55);       /* warm light border */
+
+  /* Status marks */
+  --tv-ok: oklch(0.50 0.09 150);
+  --tv-alert: oklch(0.48 0.14 28);
+
+  /* Shadow — light mode: navy-tinted lift */
+  --tv-shadow-lift: 0 4px 12px oklch(0.18 0.02 260 / 0.15);
+
+  /* Hero */
+  --tv-hero-filter: saturate(1.02) contrast(1.02);
+  --tv-grade-grain: 0.04;
+
+  /* Layout */
+  --tv-radius: 2px;
+  --tv-border-width: 1px;
+  --tv-space-unit: 0.5rem;
+  --tv-grid-gutter: 2rem;
+}
+
+/* ============================================
+   DARK MODE — deep archive: dark navy, gold ink
+   ============================================ */
+:root[data-theme="dark"] {
+  --tv-accent: oklch(0.75 0.13 85);       /* brighter gold for dark bg */
+  --tv-accent-2: oklch(0.65 0.08 50);     /* warmer bronze */
+  --tv-bg: oklch(0.17 0.015 260);         /* deep navy-black */
+  --tv-surface: oklch(0.21 0.015 260);    /* slightly lighter navy */
+  --tv-fg: oklch(0.88 0.01 60);           /* warm off-white */
+  --tv-fg-muted: oklch(0.62 0.01 260);    /* muted grey-blue */
+  --tv-border: oklch(0.32 0.01 260);      /* subtle navy border */
+
+  --tv-ok: oklch(0.60 0.10 150);
+  --tv-alert: oklch(0.58 0.15 28);
+
+  /* Shadow — dark mode: deeper black lift */
+  --tv-shadow-lift: 0 4px 16px oklch(0.05 0.01 260 / 0.4);
+
+  --tv-grade-grain: 0.03;
+}
+
+/* System dark-mode preference is handled by the pre-paint script in Base.astro,
+   which sets data-theme before first render. No CSS media query needed. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  overflow-x: clip;
+  font-family: var(--tv-font-body);
+  font-size: var(--tv-body-size);
+  line-height: var(--tv-body-leading);
+  background: var(--tv-bg);
+  color: var(--tv-fg);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+img { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+
+/* ============================================
+   THEME TOGGLE — universal, injected before paint
+   ============================================ */
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10000;
+  background: var(--tv-surface);
+  border: var(--tv-border-width) solid var(--tv-border);
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  opacity: 0.7;
+}
+.theme-toggle:hover {
+  opacity: 1;
+  border-color: var(--tv-accent);
+}
