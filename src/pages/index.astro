@@ -183,6 +183,12 @@ import Base from '../layouts/Base.astro';
 
 
 .hero-grid { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 10); align-items: center; }
+/* Mobile: image first, text second */
+@media (max-width: 899px) {
+  .hero-grid { display: flex; flex-direction: column; }
+  .hero-image-wrap { order: 1; }
+  .hero-copy { order: 2; }
+}
 @media (min-width: 900px) {
   .hero-grid { grid-template-columns: 7fr 5fr; gap: calc(var(--tv-space-unit) * 10); }
 }
