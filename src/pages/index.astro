@@ -185,9 +185,9 @@ import Base from '../layouts/Base.astro';
 .hero-grid { display: grid; grid-template-columns: 1fr; gap: calc(var(--tv-space-unit) * 10); align-items: center; }
 /* Mobile: heading first, then image, then rest — tightened spacing */
 @media (max-width: 899px) {
-  .hero { padding-top: calc(var(--tv-space-unit) * 5); padding-bottom: calc(var(--tv-space-unit) * 5); }
+  .hero { padding-top: calc(var(--tv-space-unit) * 3); padding-bottom: calc(var(--tv-space-unit) * 5); }
   .hero-grid { display: flex; flex-direction: column; gap: calc(var(--tv-space-unit) * 4); }
-  .hero-copy .eyebrow { order: 0; margin-bottom: calc(var(--tv-space-unit) * 2); }
+  .hero-copy .eyebrow { order: 0; margin-bottom: 0; }
   .hero-copy h1 { order: 1; margin-bottom: 0; }
   .hero-image-wrap { order: 2; }
   .hero-copy .hero-sub { order: 3; margin-top: 0; margin-bottom: 0; }
