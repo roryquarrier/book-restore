@@ -28,18 +28,24 @@ import Base from '../layouts/Base.astro';
       </div>
     </div>
     <div class="hero-image-wrap">
-      <button class="plate-toggle" type="button" aria-pressed="false" aria-label="Toggle between degraded and restored">
-        <span class="plate-frame">
-          <span class="plate-window">
-            <img src="/images/hero.png" alt="Peter Rabbit book cover — interactive before/after restoration demo" />
-          </span>
-        </span>
-        <span class="restore-status" aria-hidden="true">
-          <span class="label-degraded">Hover or tap to restore</span>
-          <span class="label-restored">✓ Restored</span>
-        </span>
-      </button>
-      <p class="caption">Source: photocopy, c. 1995 — Restored: 2026</p>
+      <div class="ba-slider" id="baSlider" data-pos="0">
+        <div class="ba-frame">
+          <div class="ba-window">
+            <!-- BOTTOM layer: degraded (BEFORE) — shows through on the RIGHT -->
+            <img class="ba-img ba-img--degraded" src="/images/hero.png" alt="Peter Rabbit book cover — degraded photocopy, before restoration" draggable="false" />
+            <!-- TOP layer: clean (AFTER) — shows on the LEFT, wiped by the divider -->
+            <img class="ba-img ba-img--clean" src="/images/hero.png" alt="Peter Rabbit book cover — restored, after restoration" draggable="false" style="clip-path: inset(0 100% 0 0);" />
+            <span class="ba-label ba-label--after" aria-hidden="true">After</span>
+            <span class="ba-label ba-label--before" aria-hidden="true">Before</span>
+            <button class="ba-divider" type="button" role="slider" aria-label="Drag to compare before and after restoration" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0" style="left: 0%;">
+              <span class="ba-handle" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 4 12 9 18"></polyline><polyline points="15 6 20 12 15 18"></polyline></svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <p class="caption">Source: photocopy, c. 1995 — Restored: 2026 · drag to compare</p>
     </div>
   </div>
 </section>
@@ -224,41 +230,112 @@ import Base from '../layouts/Base.astro';
 
 
 .hero-image-wrap { text-align: center; }
-.plate-toggle {
-  background: none; border: none; padding: 0; cursor: pointer; display: block;
-  max-width: min(38vh, 27rem); width: 100%; margin: 0 auto;
+
+/* ─────────────────────────────────────────────────────────────
+   BEFORE / AFTER WIPE SLIDER (hero)
+   Uses its own .ba-* classnames so it NEVER touches the shared
+   .plate-window img selector (which the compare section below
+   relies on). Two stacked images + clip-path on the top layer.
+   ───────────────────────────────────────────────────────────── */
+.ba-slider {
+  display: block;
+  margin: 0 auto;
+  max-width: min(38vh, 27rem);
+  width: 100%;
+  touch-action: none;                /* let pointermove drive dragging, not the browser scroll */
+  -webkit-user-select: none;
+  user-select: none;
 }
-.plate-frame {
-  display: block; border: var(--tv-border-width) solid var(--tv-border);
-  padding: calc(var(--tv-space-unit) * 3); background: var(--tv-surface);
+.ba-frame {
+  display: block;
+  border: var(--tv-border-width) solid var(--tv-border);
+  padding: calc(var(--tv-space-unit) * 3);
+  background: var(--tv-surface);
 }
-.plate-window { display: block; overflow: hidden; position: relative; }
-.plate-window img {
-  width: 100%; height: auto; object-fit: contain; display: block;
+.ba-window {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  line-height: 0;                    /* kill inline-img gap */
+}
+.ba-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;              /* clicks go to the divider/drag surface */
+}
+/* BOTTOM layer: degraded BEFORE state — same look as the old hero */
+.ba-img--degraded {
   filter: blur(1.6px) contrast(0.78) brightness(0.93) saturate(0.55) sepia(0.45);
   transform: skewX(-0.5deg);
-  transition: filter 0.6s ease-in-out, transform 0.6s ease-in-out;
-  will-change: filter;
 }
-.plate-toggle[aria-pressed="true"] .plate-window img {
+/* TOP layer: clean AFTER state — subtle pop, clipped from the right by JS */
+.ba-img--clean {
+  position: absolute;
+  top: 0; left: 0;
   filter: var(--tv-hero-filter);
   transform: skewX(0);
+  /* clip-path is set inline on the element and updated by JS */
+  transition: clip-path 0s;          /* JS animates via rAF; no CSS easing */
+  will-change: clip-path;
 }
-@media (hover: hover) {
-  .plate-toggle:hover .plate-window img {
-    filter: var(--tv-hero-filter);
-    transform: skewX(0);
-  }
+
+/* labels */
+.ba-label {
+  position: absolute;
+  top: calc(var(--tv-space-unit) * 2);
+  font-family: var(--tv-font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 3px calc(var(--tv-space-unit) * 2);
+  background: oklch(0.18 0.02 260 / 0.62);
+  color: #fff;
+  border-radius: var(--tv-radius);
+  pointer-events: none;
+  z-index: 3;
+  line-height: 1.4;
 }
-.restore-status { display: block; text-align: center; margin-top: calc(var(--tv-space-unit) * 2); }
-.restore-status .label-degraded { display: inline; }
-.restore-status .label-restored { display: none; color: var(--tv-accent-2); }
-.plate-toggle[aria-pressed="true"] .restore-status .label-degraded { display: none; }
-.plate-toggle[aria-pressed="true"] .restore-status .label-restored { display: inline; }
-@media (hover: hover) {
-  .plate-toggle:hover .restore-status .label-degraded { display: none; }
-  .plate-toggle:hover .restore-status .label-restored { display: inline; }
+.ba-label--after  { left:  calc(var(--tv-space-unit) * 2); }
+.ba-label--before { right: calc(var(--tv-space-unit) * 2); }
+
+/* divider + handle */
+.ba-divider {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  margin-left: -1px;                 /* centre on the position */
+  background: var(--tv-accent);
+  border: 0;
+  padding: 0;
+  cursor: ew-resize;
+  z-index: 4;
+  touch-action: none;
+  /* left:0% is set inline by JS */
+  -webkit-tap-highlight-color: transparent;
 }
+.ba-divider:focus-visible {
+  outline: 2px solid var(--tv-accent-2);
+  outline-offset: 4px;
+}
+.ba-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--tv-accent);
+  color: var(--tv-bg);
+  box-shadow: var(--tv-shadow-lift);
+  transition: transform 0.15s ease;
+}
+.ba-divider:hover .ba-handle { transform: translate(-50%, -50%) scale(1.08); }
+.ba-divider:active .ba-handle { transform: translate(-50%, -50%) scale(0.96); }
+
 .caption {
   font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
   color: var(--tv-fg-muted); text-align: center; margin-top: calc(var(--tv-space-unit) * 2);
@@ -365,17 +442,126 @@ figcaption { font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacin
 
 /* REDUCED MOTION */
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-
-/* PLATE TOGGLE JS */
-@media (hover: none) { .plate-toggle { cursor: pointer; } }
 </style>
 
 <script>
-// Tap-to-toggle on touch devices
-document.querySelectorAll('.plate-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const pressed = btn.getAttribute('aria-pressed') === 'true';
-    btn.setAttribute('aria-pressed', String(!pressed));
+/* ─────────────────────────────────────────────────────────────
+   HERO — vertical split-screen before/after wipe slider
+   - LEFT  = clean/restored (AFTER)  — top layer, clipped from right
+   - RIGHT = degraded        (BEFORE) — bottom layer, shows through
+   Pointer Events API → unified mouse + touch dragging.
+   Auto-play: ease from 0% → 50% on load (respects reduced-motion).
+   ───────────────────────────────────────────────────────────── */
+(function () {
+  const root = document.getElementById('baSlider');
+  if (!root) return;
+  const win      = root.querySelector('.ba-window');
+  const clean    = root.querySelector('.ba-img--clean');
+  const divider  = root.querySelector('.ba-divider');
+  if (!win || !clean || !divider) return;
+
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // pos is the clean-layer coverage in % (0 = all before, 100 = all after).
+  let pos = 0;
+  let dragging = false;
+  let settled = false;   // becomes true once auto-play finishes
+
+  const clamp = (v) => Math.max(0, Math.min(100, v));
+
+  function apply(p) {
+    pos = clamp(p);
+    // inset(top right bottom left): hide everything to the RIGHT of the divider.
+    clean.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+    divider.style.left = pos + '%';
+    root.setAttribute('data-pos', String(Math.round(pos)));
+    divider.setAttribute('aria-valuenow', String(Math.round(pos)));
+  }
+
+  // ── pointer position → percentage ────────────────────────────
+  function pctFromEvent(e) {
+    const r = win.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    return clamp(x * 100);
+  }
+
+  // ── drag lifecycle ───────────────────────────────────────────
+  function startDrag(e) {
+    dragging = true;
+    win.setPointerCapture && e.pointerId !== undefined &&
+      win.setPointerCapture(e.pointerId);
+    divider.classList.add('is-dragging');
+    // jump immediately to where the pointer landed
+    apply(pctFromEvent(e));
+    e.preventDefault();
+  }
+  function moveDrag(e) {
+    if (!dragging) return;
+    apply(pctFromEvent(e));
+  }
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    divider.classList.remove('is-dragging');
+  }
+
+  // Use pointer events on the whole window so the user can grab anywhere,
+  // not just the thin 2px divider (much friendlier on touch).
+  win.addEventListener('pointerdown', (e) => {
+    // Once settled, any press starts a drag at the press point.
+    if (settled) startDrag(e);
   });
-});
+  win.addEventListener('pointermove', moveDrag);
+  win.addEventListener('pointerup', endDrag);
+  win.addEventListener('pointercancel', endDrag);
+  win.addEventListener('lostpointercapture', endDrag);
+
+  // Keyboard accessibility on the divider button.
+  divider.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 10 : 4;
+    if (e.key === 'ArrowLeft')  { settled = true; apply(pos - step); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { settled = true; apply(pos + step); e.preventDefault(); }
+    if (e.key === 'Home')       { settled = true; apply(0);   e.preventDefault(); }
+    if (e.key === 'End')        { settled = true; apply(100); e.preventDefault(); }
+  });
+
+  // Prevent native image drag ghost.
+  win.querySelectorAll('img').forEach(img =>
+    img.addEventListener('dragstart', e => e.preventDefault()));
+
+  // ── auto-play wipe (0 → 50%) ─────────────────────────────────
+  function autoplay() {
+    apply(0);
+    settled = false;
+
+    if (prefersReduced) {
+      // Honour reduced-motion: land directly on the comparison view.
+      apply(50);
+      settled = true;
+      return;
+    }
+
+    const TARGET = 50;
+    const DURATION = 2200;           // ms — a deliberate, museum-paced sweep
+    const t0 = performance.now();
+
+    // easeInOutQuad for a smooth settle
+    const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+    function tick(now) {
+      const t = Math.min(1, (now - t0) / DURATION);
+      apply(TARGET * ease(t));
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        settled = true;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Kick off after layout + images have a frame to settle.
+  // requestAnimationFrame twice ≈ "next paint".
+  requestAnimationFrame(() => requestAnimationFrame(autoplay));
+})();
 </script>
