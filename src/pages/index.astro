@@ -95,7 +95,7 @@ import Base from '../layouts/Base.astro';
       <span class="fig-tag">Fig. B — After</span>
       <div class="plate-frame">
         <div class="plate-window">
-          <img src="/images/after.webp" alt="Restored Peter Rabbit grammar exercise page" />
+          <img src="/images/after.png" alt="Restored Peter Rabbit grammar exercise page" />
         </div>
       </div>
       <figcaption>Source: Book Bash restoration — 2026</figcaption>
@@ -291,7 +291,19 @@ import Base from '../layouts/Base.astro';
 @media (min-width: 700px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
 .compare-grid .plate-frame { border: var(--tv-border-width) solid var(--tv-border); padding: calc(var(--tv-space-unit) * 3); background: var(--tv-surface); }
 .compare-grid .plate-window { display: block; overflow: hidden; }
-.compare-grid .plate-window img { width: 100%; height: auto; object-fit: contain; display: block; }
+.compare-grid .plate-window img {
+  width: 100%; height: auto; object-fit: contain; display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+/* Mobile: constrain image width so fine text stays sharp — allow tap-to-zoom via padding */
+@media (max-width: 699px) {
+  .compare-grid { gap: calc(var(--tv-space-unit) * 6); }
+  .fig-before, .fig-after { max-width: 24rem; margin-inline: auto; }
+}
+/* Desktop: side-by-side, slightly tighter */
+@media (min-width: 700px) {
+  .compare-grid .plate-window img { max-width: 100%; }
+}
 figcaption { font-family: var(--tv-font-mono); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--tv-fg-muted); margin-top: calc(var(--tv-space-unit) * 2); }
 .fig-tag { display: block; text-align: center; font-family: var(--tv-font-heading); font-weight: 600; font-size: 1rem; margin-bottom: calc(var(--tv-space-unit) * 2); font-variant-caps: small-caps; letter-spacing: 0.15em; }
 .fig-before .fig-tag { color: var(--tv-fg-muted); }
